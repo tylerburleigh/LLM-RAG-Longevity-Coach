@@ -36,10 +36,13 @@ This project implements a Retrieval-Augmented Generation (RAG) chatbot that deli
 
 ## Screenshots
 
-![Screenshot 1](@img/img1.png)
-![Screenshot 2](@img/img2.png)
-![Screenshot 3](@img/img3.png)
-![Screenshot 4](@img/img4.png)
+![Screenshot 1](img/img1.png)
+
+![Screenshot 2](img/img2.png)
+
+![Screenshot 3](img/img3.png)
+
+![Screenshot 4](img/img4.png)
 
 ## How to Use the Application
 
