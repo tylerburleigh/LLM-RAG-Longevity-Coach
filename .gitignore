@@ -1,0 +1,76 @@
+# Python bytecode and cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment directories
+venv/
+env/
+ENV/
+.venv/
+
+# Distribution / packaging directories
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller build files
+*.manifest
+*.spec
+
+# Test and coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Mypy cache directory
+.mypy_cache/
+
+# Editor/IDE directories and project files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Temporary and cache files
+tmp/
+*.tmp
+
+# Environment variable files
+.env
+
+# Project-specific files and directories
+# Persisted vector store data
+vector_store_data/
+
+# User-supplied data file which contains sensitive information
+docs.jsonl
