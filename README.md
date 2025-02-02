@@ -36,11 +36,19 @@ This project implements a Retrieval-Augmented Generation (RAG) chatbot that deli
 
 ## Screenshots
 
+User enters a query:
+
 ![Screenshot 1](img/img1.png)
+
+The LLM starts thinking:
 
 ![Screenshot 2](img/img2.png)
 
+The LLM shares its intermediate thinking steps (e.g., RAG search strategy):
+
 ![Screenshot 3](img/img3.png)
+
+Finally, the LLM responds to the user query:
 
 ![Screenshot 4](img/img4.png)
 
