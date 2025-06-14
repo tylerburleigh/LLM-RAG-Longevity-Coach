@@ -1,5 +1,10 @@
 streamlit>=1.16.0
-openai>=0.27.0
+openai>=1.0.0
 faiss-cpu>=1.7.3
 numpy>=1.21.0
-langchain>=0.0.150
+langchain>=0.1.0
+langchain-core
+langchain-openai
+pandas>=1.4.0
+rank-bm25>=0.2.2
+PyMuPDF>=1.23.0
