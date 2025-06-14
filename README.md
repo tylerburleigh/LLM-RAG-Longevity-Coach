@@ -1,96 +1,74 @@
+# Advanced RAG-Powered Longevity Coach
 
-# RAG-Powered LLM Longevity Coach
-
-This project implements a Retrieval-Augmented Generation (RAG) chatbot that delivers personalized health and longevity advice. The chatbot leverages both a large language model (LLM) and a vector-based retrieval system to ensure that only the most relevant user data is used to generate responses.
+This project implements a Retrieval-Augmented Generation (RAG) chatbot that delivers personalized health and longevity advice. The application has evolved into a comprehensive knowledge management tool, featuring multiple ways for users to interact with and curate the data that informs the AI's responses.
 
 ## Overview
 
-- **Streamlit Frontend:** The user interface is built with Streamlit, which handles input/output and displays the chatbot’s conversation along with intermediate steps.
-- **Context Retrieval:** When a query is made, the system uses RAG to fetch relevant information from a large repository of health data (e.g., genetic variants, lab results, supplement details). This means only the necessary context is passed to the LLM.
-- **Cost and Accuracy:** By retrieving only the information pertinent to the user’s query, the app avoids sending an overwhelming amount of data. This prevents unnecessary token usage and minimizes the risk of diluting the LLM’s output with irrelevant details.
+- **Streamlit Frontend:** The user interface is built with Streamlit, providing a main chat interface and separate pages for knowledge management.
+- **Hybrid Search Retrieval:** The core of the chatbot combines keyword-based (BM25) and semantic (FAISS) search to retrieve highly relevant context from the knowledge base.
+- **Interactive Knowledge Base:** A dedicated page allows users to directly view, edit, add, and delete all data in the knowledge store using a spreadsheet-like interface.
+- **Multiple Data Ingestion Methods:**
+    - **PDF Upload:** Automatically processes uploaded PDF documents (e.g., lab reports), extracts text, and uses an LLM to convert it into structured knowledge base entries.
+    - **Guided Conversational Entry:** A chat-based interface where an AI assistant helps the user create new, correctly formatted data entries.
+- **Transparent Processing:** The UI provides real-time feedback during complex operations, showing the user exactly what the system is doing as it plans searches or processes documents.
 
 ## How It Works
 
-1. **User Interaction via Streamlit:**  
-   Users type their health or longevity questions into a simple chat interface. For example, "What supplements should I consider taking for longevity, based on my genetics and lab results?" The application displays the chatbot's response and its intermediate "thinking" steps.
+The application is now split into two primary workflows: chatting with the coach and managing the knowledge base.
 
-2. **Developing a Search Strategy:**  
-   The chatbot analyzes the user’s query to determine which pieces of information are most relevant. For instance, it might focus on specific genetic markers, recent lab results, or particular supplements. For example, if the user asks about supplements to manage heart disease risk, the chatbot will search for genetic markers, lab results, and supplements that would either increase or decrease the risk of heart disease.
+### Workflow 1: Chatting with the Coach
 
-3. **Retrieving Relevant Context:**  
-   Instead of retrieving a complete dump of all stored health data, the system uses the search strategy to query a FAISS-backed vector store (FAISS is an acronym for Facebook AI Similarity Search). This store can potentially contain a large amount of data, but only the relevant documents are selected. This targeted data retrieval ensures that the LLM receives only the necessary context for the query.
+1.  **User Interaction via Streamlit:**  
+    Users ask health or longevity questions in the main chat interface.
 
-4. **Generating the Response:**  
-   The filtered, relevant information is combined with the original query and passed to the LLM. This focused context helps the model generate an accurate and relevant response, while also conserving tokens and reducing processing costs.
+2.  **Developing a Search Strategy:**  
+    The chatbot analyzes the query to determine which pieces of information are most relevant. For example, if the user asks about managing heart disease risk, the chatbot will plan to search for relevant genetic markers, lab results, and supplements.
 
-## Benefits of Using RAG in This Context
+3.  **Hybrid Context Retrieval:**  
+    The system uses a powerful two-pronged approach to find the best information:
+    -   **Keyword Search (BM25):** Finds documents containing exact term matches, ensuring precision.
+    -   **Semantic Search (FAISS):** Finds conceptually related documents, capturing user intent even without specific keywords.
+    -   The results from both searches are intelligently fused to create a final, highly relevant ranking of documents to use as context.
 
-- **Efficient Use of Resources:**  
-  Instead of passing the entire dataset to the LLM, RAG allows the system to filter out less relevant information. This not only saves tokens but also reduces computational costs.
+4.  **Generating the Response:**  
+    The filtered, relevant information is combined with the original query and passed to the LLM, which generates an accurate and relevant response. The user can view the "thought process" in real-time.
+
+### Workflow 2: Managing the Knowledge Base
+
+1.  **PDF Upload & Automated Structuring:**  
+    A user can upload a PDF. The system extracts the text and uses an LLM to parse it into one or more structured JSON entries, which are then added to the knowledge base.
+
+2.  **Guided Conversational Entry:**  
+    A user can talk to a data entry assistant. The assistant asks questions and uses the user's natural language descriptions to generate a structured JSON entry, which the user then confirms before it's saved.
+
+3.  **Direct Data Editing:**  
+    Users can navigate to the "Knowledge Base" page to see all data in a spreadsheet-like table. They can directly edit cells, add new rows, or delete existing entries.
+
+4.  **Automatic Re-indexing:**  
+    Whenever the knowledge base is updated through any of these methods, the system automatically purges the old search index and re-builds it from scratch. This ensures all changes are immediately reflected in the chatbot's retrieval process.
+
+## Benefits of This Approach
 
 - **Enhanced Relevance and Accuracy:**  
-  Feeding only targeted information to the LLM minimizes noise. With a focused context, the LLM is more likely to produce responses that are directly relevant to the user's specific health and longevity query.
+  Hybrid search combines the strengths of keyword and semantic search, leading to better context and more accurate answers.
 
-- **Scalability with Large Datasets:**  
-  Health data can be vast. RAG ensures that as more user data is added, the application scales efficiently by retrieving only the pertinent details. This approach avoids the pitfalls of overwhelming the language model with too much irrelevant context.
+- **User Control and Trust:**  
+  By allowing users to view, edit, and curate the knowledge base, the application fosters transparency and gives them ultimate control over the AI's knowledge source.
+
+- **Scalability and Flexibility:**  
+  The system can be extended with new information from various sources (PDFs, user knowledge) and efficiently scales by retrieving only the most pertinent details for any given query.
 
 ## Screenshots
 
-User enters a query:
+![Screenshot 1](@img/img1.png)
+![Screenshot 2](@img/img2.png)
+![Screenshot 3](@img/img3.png)
+![Screenshot 4](@img/img4.png)
+![Screenshot 5](@img/img5.png)
+![Screenshot 6](@img/img6.png)
+![Screenshot 7](@img/img7.png)
 
-![Screenshot 1](img/img1.png)
-
-The LLM starts thinking:
-
-![Screenshot 2](img/img2.png)
-
-The LLM shares its intermediate thinking steps (e.g., RAG search strategy):
-
-![Screenshot 3](img/img3.png)
-
-Finally, the LLM responds to the user query:
-
-![Screenshot 4](img/img4.png)
-
-## How to Use the Application
-
-This project utilizes a Streamlit frontend to power the RAG-based longevity coach chatbot. The app (located in `app.py`) integrates a retrieval-augmented generation (RAG) approach with a vector store to efficiently process and respond to health and longevity queries. Follow the steps below to get started:
-
-1. **Install Dependencies**  
-   Make sure you have Python installed. Then, install the required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Set Up Your Environment**  
-   - **OpenAI API Key:**  
-     Obtain an OpenAI API key from [OpenAI](https://platform.openai.com/) and set it as an environment variable:
-     ```bash
-     export OPENAI_API_KEY="your_openai_api_key"
-     ```
-   - **Optional Health Data File:**  
-     Create a `docs.jsonl` based on the provided example (`docs_example.jsonl`) that contains your health data (e.g., supplements, gene variants, lab results) and place it in the project root. This file is used to generate and update the vector store with relevant documents before running the app. If you need help creating this data file, you can use an LLM with good coding skills to help you translate your information into the expected format.
-
-3. **Launch the Application**  
-   Start the Streamlit app by running:
-   ```bash
-   streamlit run app.py
-   ```
-   This command will open the Longevity Coach Chat interface in your browser.
-
-4. **Interact with the Chatbot**  
-   - **Enter Your Query:**  
-     Type in your health or longevity-related question. For example:
-     ```
-     What supplements should I consider for longevity based on my lab results?
-     ```
-   - **Review the Chat History:**  
-     Your question appears in the chat window.
-   - **View Coach’s Thought Process:**  
-     Click on the "View Coach's Thought Process" expander to see how the application constructs its search strategy and retrieves relevant context.
-   - **Receive a Personalized Response:**  
-     The final response, incorporating the retrieved context, is then displayed to provide detailed advice.
 
 ## Conclusion
 
-The RAG-powered longevity coach chatbot efficiently tailors its responses by only fetching the most relevant data for each user query. This selective retrieval is critical in a domain where vast amounts of health-related data are available, such as genetic variants and lab tests. By reducing the context to what is necessary, the app not only conserves computational resources but also improves the accuracy and relevance of the responses generated by the LLM.
+The RAG-powered longevity coach has evolved into an interactive and powerful knowledge management system. It not only tailors its responses by fetching the most relevant data but also empowers the user to curate and expand that knowledge base through intuitive interfaces. This creates a more accurate, transparent, and personalized user experience.
