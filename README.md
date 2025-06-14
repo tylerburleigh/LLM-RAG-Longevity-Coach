@@ -60,13 +60,19 @@ The application is now split into two primary workflows: chatting with the coach
 
 ## Screenshots
 
-![Screenshot 1](@img/img1.png)
-![Screenshot 2](@img/img2.png)
-![Screenshot 3](@img/img3.png)
-![Screenshot 4](@img/img4.png)
-![Screenshot 5](@img/img5.png)
-![Screenshot 6](@img/img6.png)
-![Screenshot 7](@img/img7.png)
+![Screenshot 1](img/img1.png)
+
+![Screenshot 2](img/img2.png)
+
+![Screenshot 3](img/img3.png)
+
+![Screenshot 4](img/img4.png)
+
+![Screenshot 5](img/img5.png)
+
+![Screenshot 6](img/img6.png)
+
+![Screenshot 7](img/img7.png)
 
 
 ## Conclusion
