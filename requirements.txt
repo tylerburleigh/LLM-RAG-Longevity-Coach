@@ -2,9 +2,11 @@ streamlit>=1.16.0
 openai>=1.0.0
 faiss-cpu>=1.7.3
 numpy>=1.21.0
-langchain>=0.1.0
-langchain-core
-langchain-openai
+langchain>=0.3.0,<0.4
+langchain-core>=0.3.0,<0.4
+langchain-openai>=0.2.0,<0.3
+langchain-google-genai>=2.0.0,<3
+python-dotenv
 pandas>=1.4.0
 rank-bm25>=0.2.2
 PyMuPDF>=1.23.0

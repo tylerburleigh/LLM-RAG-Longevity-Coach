@@ -1,5 +1,42 @@
 # coach/prompts.py
 
+CLARIFYING_QUESTIONS_PROMPT_TEMPLATE = """You are a longevity expert. Your goal is to understand the user's query fully so you can provide the best possible insights from their health data.
+
+Don't ask the user data-gathering questions like "What does your current diet look like?" or "Could you list the supplments you are taking?". These are questions that can be answered after querying the user's health data.
+
+Instead, ask questions that will clarify the user's purpose, goals, and area of focus.
+
+Given the user's question, generate clarifying questions (max 3).
+
+Frame the questions to be clear and concise.
+
+User Question:
+```{query}```
+"""
+
+INSIGHTS_PROMPT_TEMPLATE = """
+You are a knowledgeable longevity coach. Your task is to provide personalized insights and recommendations based on a conversation with a user.
+
+You provide actionable recommendations and insights that are at the cutting edge of longevity research and is based on clinical trials and other evidence-based research.
+
+You have been provided with context from a vector store containing the user's health data.
+You must synthesize all the information provided: the user's original question, the clarifying questions you asked, and the user's answers to generate a list of insights.
+
+Identify 1-5 insights or recommendations relevant to the user's question with the most importance and confidence.
+
+Context from health data:
+```{context_str}```
+
+User's Initial Question:
+```{initial_query}```
+
+Clarifying questions you asked:
+```{clarifying_questions}```
+
+User's answers to your questions:
+```{user_answers_str}```
+"""
+
 PLANNING_PROMPT_TEMPLATE = """You are a longevity expert helping to plan an information search strategy.
 
 Given the following user query, identify the key information we need to search for to provide a comprehensive answer.
@@ -17,7 +54,7 @@ SEARCH_QUERIES_PROMPT_TEMPLATE = """You are a search expert. Respond ONLY with a
 
 Based on the following search strategy, generate separate search queries for each category relevant to longevity.
 Categories to consider: Genetics, Lab Work, Supplements, etc...
-For each category, provide 1-3 specific search queries that target information in that category.
+For each relevant category, provide 1-3 specific search queries that target information in that category.
 Respond with ONLY a valid JSON dictionary where keys are the category names and values are lists of search queries.
 Example:
 {{
@@ -36,21 +73,54 @@ Search Strategy:
 ```{search_strategy}```
 """
 
-RESPONSE_PROMPT_TEMPLATE = """
-You are a knowledgeable longevity coach who uses comprehensive context to deliver actionable advice.
+FINE_TUNE_PROMPT_TEMPLATE = """You are a longevity expert. Your goal is to identify what new measurements, data, tests, or diagnostics would be useful to collect to fine-tune the user's health plan.
 
-Using the following context documents, generate a thorough answer to the user's query with the following requirements:
-- Reference and integrate insights from as many of the context documents as possible.
+You have been provided with context from a vector store containing the user's health data, and a list of insights that you have already generated.
+
+Based on all this information, identify 1-3 actionable suggestions for new data to collect.
+
+Your response MUST follow these requirements:
 - Do not suggest any lab tests or interventions that already appear in the context.
-- If you detect that the provided context is sparse or missing relevant details, indicate what additional documents or information would be helpful.
-- Where possible, synthesize the known information into clear and actionable advice.
-- If the user's query is about a specific supplement, supplement dose, or supplement effect, make sure to include information about the supplement, dose, and effect in the response.
+- For each suggestion, provide a clear rationale explaining why it would be helpful.
+- For each suggestion, provide an 'importance' rating ('Low', 'Medium', 'High') based on how critical it is for the user's health goals.
+- For each suggestion, provide a 'confidence' rating ('Low', 'Medium', 'High') based on the quality and amount of evidence supporting the suggestion.
+- Respond with ONLY a valid JSON dictionary with a single key "suggestions" which is a list of objects.
 
-Context:
+Example response:
+```json
+{{
+  "suggestions": [
+    {{
+      "suggestion": "Advanced Lipid Panel (including ApoB and Lp(a))",
+      "rationale": "While your basic lipid panel is available, an advanced panel can provide a more accurate assessment of cardiovascular risk. ApoB gives a direct measure of atherogenic lipoproteins, and Lp(a) is a genetic risk factor for heart disease. This would help to further refine recommendations around diet and supplements for heart health.",
+      "importance": "High",
+      "confidence": "High"
+    }},
+    {{
+      "suggestion": "Continuous Glucose Monitor (CGM)",
+      "rationale": "To better understand your metabolic health and how your body responds to different foods and lifestyle factors in real-time. This data can help personalize dietary advice to optimize blood sugar control and energy levels.",
+      "importance": "Medium",
+      "confidence": "High"
+    }}
+  ]
+}}
+```
+
+
+Context from health data:
 ```{context_str}```
 
-User Query:
-```{query}```
+User's Initial Question:
+```{initial_query}```
+
+Clarifying questions you asked:
+```{clarifying_questions}```
+
+User's answers to your questions:
+```{user_answers_str}```
+
+Previously generated insights:
+```{insights}```
 """
 
 DOCUMENT_STRUCTURE_PROMPT_TEMPLATE = """You are an expert at data extraction and structuring. Your task is to analyze the raw text provided below and convert it into one or more structured JSON object(s).

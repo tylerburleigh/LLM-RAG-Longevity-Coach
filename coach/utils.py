@@ -1,10 +1,32 @@
 # coach/utils.py
 import json
+from langchain.docstore.document import Document
+import streamlit as st
+import os
 import logging
+
+from coach.vector_store import PersistentVectorStore
+from coach.longevity_coach import LongevityCoach
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DOCS_FILE = "docs.jsonl"
+
+
+@st.cache_resource
+def initialize_coach():
+    """Initialize the vector store and coach."""
+    vector_store = PersistentVectorStore()
+    if os.path.exists(DOCS_FILE):
+        docs = load_docs_from_jsonl(DOCS_FILE)
+        update_vector_store_from_docs(vector_store, docs)
+        vector_store.save()
+    else:
+        logger.info(f"Docs file {DOCS_FILE} not found. Skipping update.")
+    return LongevityCoach(vector_store)
+
 
 def load_docs_from_jsonl(file_path):
     """

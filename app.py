@@ -1,188 +1,221 @@
 import streamlit as st
-import json
-import traceback
 from coach.longevity_coach import LongevityCoach
-from coach.utils import load_docs_from_jsonl, update_vector_store_from_docs
+from coach.utils import load_docs_from_jsonl, update_vector_store_from_docs, initialize_coach
 from coach.vector_store import PersistentVectorStore
-from coach.document_processor import extract_text_from_pdf, create_structured_documents
 import os
 import logging
 
-# Configure logging
+# --- Setup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# --- Constants ---
 DOCS_FILE = "docs.jsonl"
-SESSION_STATE_MESSAGES = "messages"
-SESSION_STATE_CONTEXT = "current_context"
 
-# --- Page and Session State Setup ---
+# --- Page and Session State ---
 def setup_page():
-    """Set up the Streamlit page configuration."""
     st.set_page_config(page_title="Longevity Coach", layout="wide")
 
 def initialize_session_state():
-    """Initialize session state variables if they don't exist."""
-    if SESSION_STATE_MESSAGES not in st.session_state:
-        st.session_state[SESSION_STATE_MESSAGES] = []
-    if SESSION_STATE_CONTEXT not in st.session_state:
-        st.session_state[SESSION_STATE_CONTEXT] = []
+    st.session_state.clear()
+    st.session_state.app_state = "AWAITING_INITIAL_QUESTION"
+    st.session_state.messages = []
+    st.session_state.initial_query = ""
+    st.session_state.clarifying_questions = []
+    st.session_state.feedback = {}
 
 # --- Coach Initialization ---
 @st.cache_resource
-def initialize_coach():
-    """Initialize the vector store and coach."""
+def initialize_coach(model_name: str = "o3"):
     vector_store = PersistentVectorStore()
-    
     if os.path.exists(DOCS_FILE):
         docs = load_docs_from_jsonl(DOCS_FILE)
         update_vector_store_from_docs(vector_store, docs)
         vector_store.save()
     else:
         logger.info(f"Docs file {DOCS_FILE} not found. Skipping update.")
-    
-    return LongevityCoach(vector_store)
+    return LongevityCoach(vector_store, model_name=model_name)
 
 # --- UI Components ---
-def display_sidebar(coach):
-    """Display the sidebar with a file uploader and processing logic."""
+def display_sidebar():
     with st.sidebar:
-        st.header("Add New Documents")
-        st.markdown("""
-        Upload your lab reports or other health documents in PDF format. 
-        The assistant will process them and add the information to its knowledge base.
-        """)
-        
-        uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
-        
-        if st.button("Analyze and Add Document"):
-            if uploaded_file is not None:
-                with st.status("Processing document...", expanded=True) as status:
-                    try:
-                        status.write("📄 Extracting text from PDF...")
-                        raw_text = extract_text_from_pdf(uploaded_file.getvalue())
-                        
-                        if not raw_text:
-                            status.update(label="PDF processing failed.", state="error", expanded=True)
-                            st.error("Could not extract text from the PDF. The file might be empty or corrupted.")
-                            return
-
-                        status.write("🤖 Structuring data with AI...")
-                        structured_docs = create_structured_documents(raw_text, coach.llm)
-                        logger.info(f"Structured documents from LLM: {structured_docs}")
-
-                        if not structured_docs:
-                            status.update(label="Data structuring failed.", state="error", expanded=True)
-                            st.error("Failed to create any structured documents from the text. The content might be unsupported or empty.")
-                            return
-                        
-                        valid_docs = []
-                        malformed_count = 0
-                        for doc in structured_docs:
-                            if isinstance(doc, dict) and "doc_id" in doc and "text" in doc:
-                                valid_docs.append(doc)
-                            else:
-                                malformed_count += 1
-                        
-                        if malformed_count > 0:
-                            logger.warning(f"Discarded {malformed_count} malformed document objects from LLM output.")
-                            st.warning(f"Could not process {malformed_count} entries from the document due to formatting issues.")
-
-                        if not valid_docs:
-                            status.update(label="No valid data found.", state="error", expanded=True)
-                            st.error("The document could not be processed into any valid data entries.")
-                            return
-
-                        status.write(f"➕ Adding {len(valid_docs)} new document(s) to knowledge base...")
-                        with open(DOCS_FILE, "a") as f:
-                            for doc in valid_docs:
-                                f.write(json.dumps(doc) + "\n")
-                        
-                        status.write("🔄 Reloading knowledge base...")
-                        st.cache_resource.clear()
-                        
-                        status.update(label="Processing Complete!", state="complete", expanded=False)
-                        st.success(f"Successfully processed and added {len(valid_docs)} new document(s).")
-                        st.rerun()
-
-                    except Exception as e:
-                        logger.error(f"An error occurred during PDF processing: {e}")
-                        # Also log the full traceback to the console
-                        tb_str = traceback.format_exc()
-                        logger.error(tb_str)
-                        st.error(f"An error occurred during processing: {e}")
-            else:
-                st.warning("Please upload a PDF file first.")
+        st.header("Conversation Control")
+        if st.button("Start New Conversation"):
+            initialize_session_state()
+            st.rerun()
 
 def display_chat_history():
-    """Display the chat history from the session state."""
-    for message in st.session_state[SESSION_STATE_MESSAGES]:
+    for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-def handle_new_conversation_button():
-    """Handle the 'Start New Conversation' button click."""
-    if st.button("Start New Conversation"):
-        st.session_state[SESSION_STATE_CONTEXT] = []
-        st.session_state[SESSION_STATE_MESSAGES] = []
-        st.rerun()
-
-def handle_chat_input(coach):
-    """Handle the user's chat input and the conversation logic."""
-    if prompt := st.chat_input("Ask your health and longevity questions..."):
-        # Display user message and add to history
-        st.session_state[SESSION_STATE_MESSAGES].append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        
-        # Generate and display assistant response
-        with st.chat_message("assistant"):
-            if not st.session_state[SESSION_STATE_CONTEXT]:
-                # First message in a conversation, perform full RAG
-                response_container = st.empty()
-                with st.status("Thinking...", expanded=True) as status:
-                    status.write("🧠 Planning search strategy...")
-                    search_strategy = coach.plan_search(prompt)
-                    
-                    status.write("🔎 Retrieving relevant documents...")
-                    context = coach.retrieve_context(search_strategy)
-                    
-                    st.session_state[SESSION_STATE_CONTEXT] = context
-                    
-                    status.write("✍️ Synthesizing the final answer...")
-                    response = coach.generate_response_with_context(prompt, context)
-                    
-                    # Show the thought process inside the collapsed status box
-                    status.update(label="Coach's Thought Process", state="complete", expanded=False)
-                    with status:
-                        st.markdown("**Search Strategy:**")
-                        st.text(search_strategy)
-                        st.markdown("**Retrieved Context:**")
-                        st.text("\n\n---\n\n".join(context))
-
-                response_container.markdown(response)
+            content = message["content"]
+            # This is a bit of a hack to render raw HTML for insights
+            if isinstance(content, dict) and "insights" in content:
+                render_insights(content["insights"])
+                if content.get("suggestions"):
+                    render_fine_tune_suggestions(content["suggestions"])
+            elif isinstance(content, list):  # Backwards compatibility for old format
+                render_insights(content)
             else:
-                # Follow-up message
-                response = coach.continue_chat(prompt, st.session_state[SESSION_STATE_CONTEXT])
-                st.markdown(response)
+                st.markdown(str(content))
+
+def render_insights(insights: list):
+    # --- Define styles for visual presentation ---
+    IMPORTANCE_EMOJI = {"High": "🔥", "Medium": "⭐", "Low": "⚪️"}
+    CONFIDENCE_EMOJI = {"High": "✅", "Medium": "✔️", "Low": "❔"}
+    
+    st.markdown("### ✍️ Insights and Recommendations")
+    st.info(
+        "Here are some insights and recommendations based on your health data:"
+    )
+
+    for i, insight in enumerate(insights):
+        with st.container(border=True):
+            st.markdown(f"#### {insight.insight}")
+
+            cols = st.columns(2)
+            with cols[0]:
+                st.markdown(
+                    f"**Importance:** {IMPORTANCE_EMOJI.get(insight.importance, '')} {insight.importance}"
+                )
+            with cols[1]:
+                st.markdown(
+                    f"**Confidence:** {CONFIDENCE_EMOJI.get(insight.confidence, '')} {insight.confidence}"
+                )
             
-        # Add assistant response to history
-        st.session_state[SESSION_STATE_MESSAGES].append({"role": "assistant", "content": response})
+            st.divider()
+
+            with st.expander("Show Rationale"):
+                st.markdown("**Rationale:**")
+                st.info(insight.rationale)
+                st.markdown("**Supporting Data:**")
+                st.info(insight.data_summary)
+
+            feedback_cols = st.columns([1, 1, 8])
+            feedback_state = st.session_state.feedback.get(i)
+
+            with feedback_cols[0]:
+                if st.button(
+                    "👍",
+                    key=f"thumb_up_{i}",
+                    type="primary" if feedback_state == "up" else "secondary",
+                ):
+                    st.session_state.feedback[i] = "up" if feedback_state != "up" else None
+                    st.rerun()
+            with feedback_cols[1]:
+                if st.button(
+                    "👎",
+                    key=f"thumb_down_{i}",
+                    type="primary" if feedback_state == "down" else "secondary",
+                ):
+                    st.session_state.feedback[i] = "down" if feedback_state != "down" else None
+                    st.rerun()
+
+def render_fine_tune_suggestions(suggestions: list):
+    """Renders the fine-tuning suggestions in the UI."""
+    # --- Define styles for visual presentation ---
+    IMPORTANCE_EMOJI = {"High": "🔥", "Medium": "⭐", "Low": "⚪️"}
+    CONFIDENCE_EMOJI = {"High": "✅", "Medium": "✔️", "Low": "❔"}
+
+    if suggestions:
+        st.markdown("### 💡 Suggestions for Next Steps")
+        st.info(
+            "To further refine your health plan, you might consider collecting the following data:"
+        )
+        for suggestion in suggestions:
+            with st.container(border=True):
+                st.markdown(f"#### {suggestion.suggestion}")
+                cols = st.columns(2)
+                with cols[0]:
+                    st.markdown(
+                        f"**Importance:** {IMPORTANCE_EMOJI.get(suggestion.importance, '')} {suggestion.importance}"
+                    )
+                with cols[1]:
+                    st.markdown(
+                        f"**Confidence:** {CONFIDENCE_EMOJI.get(suggestion.confidence, '')} {suggestion.confidence}"
+                    )
+                st.divider()
+                with st.expander("View Rationale"):
+                    st.markdown(suggestion.rationale)
+
+def handle_chat_input(coach: LongevityCoach):
+    if st.session_state.app_state != "CONVERSATION_ENDED":
+        if prompt := st.chat_input("Ask a question or state your goal..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
+            if st.session_state.app_state == "AWAITING_INITIAL_QUESTION":
+                st.session_state.initial_query = prompt
+                with st.chat_message("assistant"):
+                    with st.spinner("Analyzing request..."):
+                        questions = coach.generate_clarifying_questions(prompt)
+                        st.session_state.clarifying_questions = questions
+                        response_text = "I have some questions to better understand your needs:\n\n" + "\n".join(
+                            f"- {q}" for q in questions
+                        )
+                        st.markdown(response_text)
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": response_text}
+                )
+                st.session_state.app_state = "AWAITING_ANSWERS"
+
+            elif st.session_state.app_state == "AWAITING_ANSWERS":
+                user_answers = prompt
+                with st.chat_message("assistant"):
+                    with st.status(
+                        "Generating your personalized insights...", expanded=True
+                    ) as status:
+
+                        def progress_callback(message: str):
+                            status.write(message)
+
+                        insights, fine_tune_suggestions = coach.generate_insights(
+                            initial_query=st.session_state.initial_query,
+                            clarifying_questions=st.session_state.clarifying_questions,
+                            user_answers_str=user_answers,
+                            progress_callback=progress_callback,
+                        )
+                        status.update(
+                            label="Insights Complete!", state="complete", expanded=False
+                        )
+
+                    render_insights(insights)
+                    render_fine_tune_suggestions(fine_tune_suggestions)
+
+                # Store insights and suggestions together in the chat history
+                assistant_response = {
+                    "insights": insights,
+                    "suggestions": fine_tune_suggestions,
+                }
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": assistant_response}
+                )
+                # Transition to ended state
+                st.session_state.app_state = "CONVERSATION_ENDED"
+                st.session_state.initial_query = ""
+                st.session_state.clarifying_questions = []
+
+            st.rerun()
+    else:
+        st.info(
+            "This conversation has concluded. To ask another question, please start a new conversation using the button in the sidebar."
+        )
 
 # --- Main App ---
 def main():
-    """Main function to run the Streamlit app."""
     setup_page()
-    initialize_session_state()
+    st.title("🧬 Longevity Coach")
     
-    st.title("🧬 Longevity Coach Chat")
+    model_name = st.selectbox(
+        "Choose a model",
+        ("o4-mini", "o3", "gemini-2.5-pro"),
+        index=1,  # Default to 'o3'
+    )
     
-    coach = initialize_coach()
-    
-    display_sidebar(coach)
+    # Initialize coach and session state
+    coach = initialize_coach(model_name)
+    if 'app_state' not in st.session_state:
+        initialize_session_state()
+
+    # Display UI
+    display_sidebar()
     display_chat_history()
-    handle_new_conversation_button()
     handle_chat_input(coach)
 
 if __name__ == "__main__":
