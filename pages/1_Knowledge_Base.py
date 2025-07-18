@@ -5,18 +5,87 @@ import os
 import shutil
 import logging
 
+from coach.auth import require_authentication
+from coach.navigation import display_page_footer
+from coach.page_setup import setup_authenticated_page
+
 # --- Configuration ---
 DOCS_FILE = "docs.jsonl"
 VECTOR_STORE_PATH = "vector_store_data"
 logger = logging.getLogger(__name__)
 
-# --- Page Setup ---
-st.set_page_config(page_title="Knowledge Base Management", layout="wide")
-st.title("📚 Knowledge Base Management")
-st.markdown("""
-Here you can directly view, edit, add, or delete the documents that form the coach's knowledge base. 
-When you're finished, click the 'Save and Re-index' button to apply your changes.
-""")
+@require_authentication
+def show_knowledge_base():
+    """Protected function to show the knowledge base management page."""
+    # Set up authenticated page with navigation
+    user_context = setup_authenticated_page("Knowledge Base Management", "📚")
+    if not user_context:
+        return
+    
+    st.markdown(f"""
+    **Welcome, {user_context.name}!**
+    
+    Here you can directly view, edit, add, or delete the documents that form your personal knowledge base. 
+    When you're finished, click the 'Save and Re-index' button to apply your changes.
+    """)
+    
+    # Show user data location
+    st.info(f"💾 Your data is stored in: `{DOCS_FILE}` (User: {user_context.email})")
+    
+    # Run the main logic
+    manage_knowledge_base()
+    
+    # Display footer
+    display_page_footer()
+
+def manage_knowledge_base():
+    """Main knowledge base management logic."""
+    
+    # --- Main Page Logic ---
+    if 'docs_df' not in st.session_state:
+        st.session_state.docs_df = load_data()
+
+    # Display the data editor
+    edited_df = st.data_editor(
+        st.session_state.docs_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "metadata": st.column_config.TextColumn(
+                "Metadata (JSON)",
+                help="Metadata must be a valid JSON string.",
+            ),
+            "text": st.column_config.TextColumn(
+                "Document Text",
+                width="large"
+            )
+        }
+    )
+
+    # Save and Re-index Button
+    st.markdown("---")
+    if st.button("💾 Save and Re-index Knowledge Base", type="primary"):
+        with st.status("Saving changes and re-indexing...", expanded=True) as status:
+            try:
+                status.write("Saving data to disk...")
+                st.session_state.docs_df = edited_df
+                save_data(st.session_state.docs_df)
+                status.write("Data saved successfully.")
+
+                status.write("Purging old search index...")
+                if os.path.exists(VECTOR_STORE_PATH):
+                    shutil.rmtree(VECTOR_STORE_PATH)
+                status.write("Old index purged.")
+                
+                status.write("Clearing app cache to force re-load...")
+                st.cache_resource.clear()
+                
+                status.update(label="Re-indexing complete! The chat bot is now using the updated knowledge.", state="complete", expanded=True)
+                st.success("Knowledge base updated! Navigate back to the main chat page to use it.")
+
+            except Exception as e:
+                status.update(label="An error occurred.", state="error", expanded=True)
+                st.error(f"Failed to save and re-index: {e}")
 
 # --- Helper Functions ---
 def load_data():
@@ -55,48 +124,7 @@ def save_data(df):
                     st.warning(f"Could not parse metadata for doc_id {doc.get('doc_id')}. Saving as raw string.")
             f.write(json.dumps(doc) + "\n")
 
-# --- Main Page Logic ---
-if 'docs_df' not in st.session_state:
-    st.session_state.docs_df = load_data()
 
-# Display the data editor
-edited_df = st.data_editor(
-    st.session_state.docs_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    column_config={
-        "metadata": st.column_config.TextColumn(
-            "Metadata (JSON)",
-            help="Metadata must be a valid JSON string.",
-        ),
-        "text": st.column_config.TextColumn(
-            "Document Text",
-            width="large"
-        )
-    }
-)
-
-# Save and Re-index Button
-st.markdown("---")
-if st.button("💾 Save and Re-index Knowledge Base", type="primary"):
-    with st.status("Saving changes and re-indexing...", expanded=True) as status:
-        try:
-            status.write("Saving data to disk...")
-            st.session_state.docs_df = edited_df
-            save_data(st.session_state.docs_df)
-            status.write("Data saved successfully.")
-
-            status.write("Purging old search index...")
-            if os.path.exists(VECTOR_STORE_PATH):
-                shutil.rmtree(VECTOR_STORE_PATH)
-            status.write("Old index purged.")
-            
-            status.write("Clearing app cache to force re-load...")
-            st.cache_resource.clear()
-            
-            status.update(label="Re-indexing complete! The chat bot is now using the updated knowledge.", state="complete", expanded=True)
-            st.success("Knowledge base updated! Navigate back to the main chat page to use it.")
-
-        except Exception as e:
-            status.update(label="An error occurred.", state="error", expanded=True)
-            st.error(f"Failed to save and re-index: {e}") 
+# --- Main execution ---
+if __name__ == "__main__":
+    show_knowledge_base() 

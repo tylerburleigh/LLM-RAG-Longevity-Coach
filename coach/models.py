@@ -103,3 +103,17 @@ class DocumentProcessingResult(BaseModel):
         None,
         description="Error message if processing failed"
     )
+
+
+# --- User Context Models ---
+class UserContext(BaseModel):
+    """Represents user authentication and profile information."""
+    user_id: str = Field(..., description="Unique identifier for the user")
+    email: str = Field(..., description="User's email address")
+    name: str = Field(..., description="User's display name")
+    oauth_token: str = Field(..., description="OAuth access token for authentication")
+    refresh_token: str = Field(..., description="OAuth refresh token for token renewal")
+    encryption_key: Optional[str] = Field(
+        None,
+        description="Optional encryption key for securing user data"
+    )

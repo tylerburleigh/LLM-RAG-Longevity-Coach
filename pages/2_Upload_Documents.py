@@ -7,6 +7,9 @@ from coach.document_processor import (
     create_structured_documents,
 )
 from coach.utils import initialize_coach
+from coach.auth import require_authentication
+from coach.navigation import display_page_footer
+from coach.page_setup import setup_authenticated_page
 
 # --- Setup ---
 logging.basicConfig(level=logging.INFO)
@@ -14,19 +17,35 @@ logger = logging.getLogger(__name__)
 DOCS_FILE = "docs.jsonl"
 
 
-def main():
-    st.set_page_config(page_title="Upload Documents", layout="wide")
-    st.title("📄 Upload New Documents")
+@require_authentication
+def show_upload_documents():
+    """Protected function to show the document upload page."""
+    # Set up authenticated page with navigation
+    user_context = setup_authenticated_page("Upload Documents", "📄")
+    if not user_context:
+        return
+    
+    st.markdown(f"""
+    **Welcome, {user_context.name}!**
+    
+    Upload your lab reports or other health documents in PDF format. 
+    The assistant will process them and add the information to your personal knowledge base.
+    This will make the chat assistant's insights more personalized and relevant.
+    """)
+    
+    # Show user data location
+    st.info(f"💾 Documents will be added to: `{DOCS_FILE}` (User: {user_context.email})")
+    
+    # Run the main logic
+    upload_documents_interface()
+    
+    # Display footer
+    display_page_footer()
 
+
+def upload_documents_interface():
+    """Main document upload interface."""
     coach = initialize_coach()
-
-    st.markdown(
-        """
-        Upload your lab reports or other health documents in PDF format. 
-        The assistant will process them and add the information to its knowledge base.
-        This will make the chat assistant's insights more personalized and relevant.
-        """
-    )
 
     uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
@@ -112,5 +131,6 @@ def main():
             st.warning("Please upload a PDF file first.")
 
 
+# --- Main execution ---
 if __name__ == "__main__":
-    main() 
+    show_upload_documents() 
