@@ -16,6 +16,9 @@ class Config:
     FAISS_INDEX_FILENAME: str = os.getenv("FAISS_INDEX_FILENAME", "faiss_index.bin")
     DOCUMENTS_FILENAME: str = os.getenv("DOCUMENTS_FILENAME", "documents.pkl")
     
+    # Optional Features
+    USE_LANGCHAIN_CHAINS: bool = os.getenv("USE_LANGCHAIN_CHAINS", "false").lower() == "true"
+    
     # Embedding Configuration
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-large")
     EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "3072"))

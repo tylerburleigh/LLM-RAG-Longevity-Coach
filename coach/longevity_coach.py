@@ -16,14 +16,34 @@ from coach.llm_providers import get_llm
 from coach.types import ProgressCallback
 from coach.config import config
 
+# Try to import chains if available
+try:
+    from coach.chains import LongevityCoachChains, create_rag_workflow
+    CHAINS_AVAILABLE = True
+except ImportError:
+    CHAINS_AVAILABLE = False
+
 
 
 
 class LongevityCoach:
-    def __init__(self, vector_store, model_name: Optional[str] = None):
+    def __init__(self, vector_store, model_name: Optional[str] = None, use_chains: Optional[bool] = None):
         self.vector_store = vector_store
         self.model_name = model_name or config.DEFAULT_LLM_MODEL
         self.llm = get_llm(self.model_name)
+        
+        # Initialize chains if enabled and available
+        self.use_chains = use_chains if use_chains is not None else config.USE_LANGCHAIN_CHAINS
+        self.chains = None
+        self.rag_workflow = None
+        
+        if self.use_chains and CHAINS_AVAILABLE:
+            try:
+                self.chains = LongevityCoachChains(self.llm)
+                self.rag_workflow = create_rag_workflow(self.llm, self.vector_store)
+            except Exception as e:
+                print(f"Warning: Could not initialize chains: {e}")
+                self.use_chains = False
 
         self.insights_llm = self.llm.bind_tools([Insights], tool_choice="Insights")
         self.clarifying_questions_llm = self.llm.bind_tools(

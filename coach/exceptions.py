@@ -104,6 +104,12 @@ class RetrievalException(SearchException):
     pass
 
 
+# Chain Execution Exceptions
+class ChainExecutionException(CoachException):
+    """Raised when LangChain chain execution fails."""
+    pass
+
+
 # Configuration Exceptions
 class ConfigurationException(CoachException):
     """Base exception for configuration errors."""

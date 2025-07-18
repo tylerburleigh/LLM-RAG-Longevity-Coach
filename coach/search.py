@@ -12,6 +12,8 @@ from coach.exceptions import (
     RetrievalException,
 )
 from coach.config import config
+from coach.retrievers import create_advanced_retriever
+from coach.llm_providers import get_embeddings
 
 logger = logging.getLogger(__name__)
 
@@ -74,34 +76,69 @@ def _generate_search_queries(search_strategy: str, llm) -> SearchQueryDict:
     except Exception as e:
         raise QueryGenerationException(f"Failed to generate search queries: {str(e)}") from e
 
-def retrieve_context(search_strategy: str, llm, vector_store) -> List[str]:
+def retrieve_context(
+    search_strategy: str,
+    llm,
+    vector_store,
+    retrieval_strategy: str = "ensemble",
+    use_multi_strategy: bool = False,
+    **kwargs
+) -> List[str]:
     """
-    Retrieve relevant context based on the search strategy.
+    Retrieve context using advanced retrieval strategies.
     
-    This function now uses the hybrid search capabilities of the vector store.
-
     Args:
-        search_strategy: The search strategy planned by the LLM.
-        llm: The language model instance.
-        vector_store: The vector store instance with a .search() method.
-
+        search_strategy: The search strategy planned by the LLM
+        llm: The language model instance
+        vector_store: The vector store instance
+        retrieval_strategy: Advanced retrieval strategy to use
+        use_multi_strategy: Whether to use multiple strategies
+        **kwargs: Additional parameters for advanced retrieval
+        
     Returns:
-        A list of unique document texts.
+        A list of unique document texts
         
     Raises:
-        RetrievalException: If document retrieval fails.
+        RetrievalException: If document retrieval fails
     """
     try:
+        # Create advanced retriever
+        embedding_model = get_embeddings()
+        
+        advanced_retriever = create_advanced_retriever(
+            vector_store=vector_store,
+            llm=llm,
+            embedding_model=embedding_model,
+            **kwargs
+        )
+        
+        # Generate search queries
         search_queries_dict = _generate_search_queries(search_strategy, llm)
-
+        
         all_docs = []
         for category, queries in search_queries_dict.items():
             for query in queries:
                 final_query = f"{category}: {query}"
-                # This now calls the new hybrid search method in the vector store
-                docs = vector_store.search(final_query, top_k=config.DEFAULT_TOP_K)
+                
+                if use_multi_strategy:
+                    # Use multiple strategies
+                    strategies = ["ensemble", "multi_query", "compressed"]
+                    docs = advanced_retriever.multi_strategy_retrieve(
+                        final_query,
+                        strategies=strategies,
+                        top_k=config.DEFAULT_TOP_K,
+                        merge_method="rank_fusion"
+                    )
+                else:
+                    # Use single strategy
+                    docs = advanced_retriever.retrieve(
+                        final_query,
+                        strategy=retrieval_strategy,
+                        top_k=config.DEFAULT_TOP_K
+                    )
+                
                 all_docs.extend(docs)
-
+        
         # De-duplicate documents based on 'doc_id' while preserving order
         unique_docs = []
         seen_ids = set()
@@ -109,7 +146,14 @@ def retrieve_context(search_strategy: str, llm, vector_store) -> List[str]:
             if doc['doc_id'] not in seen_ids:
                 seen_ids.add(doc['doc_id'])
                 unique_docs.append(doc['text'])
-                
+        
+        logger.info(f"Advanced retrieval returned {len(unique_docs)} unique documents")
         return unique_docs
+        
     except Exception as e:
-        raise RetrievalException(f"Failed to retrieve context: {str(e)}") from e 
+        logger.error(f"Advanced retrieval failed: {e}")
+        raise RetrievalException(f"Failed to retrieve context: {str(e)}") from e
+
+
+# Alias for backward compatibility
+advanced_retrieve_context = retrieve_context 

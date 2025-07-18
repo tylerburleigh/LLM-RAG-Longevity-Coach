@@ -10,6 +10,7 @@ from coach.prompts.planning import PLANNING_PROMPT_TEMPLATE
 from coach.prompts.search import SEARCH_QUERIES_PROMPT_TEMPLATE
 from coach.prompts.document import DOCUMENT_STRUCTURE_PROMPT_TEMPLATE
 from coach.prompts.guided_entry import GUIDED_ENTRY_PROMPT_TEMPLATE
+from coach.prompts.rag import COMPLETE_RAG_PROMPT_TEMPLATE
 
 __all__ = [
     "CLARIFYING_QUESTIONS_PROMPT_TEMPLATE",
@@ -18,4 +19,5 @@ __all__ = [
     "SEARCH_QUERIES_PROMPT_TEMPLATE",
     "DOCUMENT_STRUCTURE_PROMPT_TEMPLATE",
     "GUIDED_ENTRY_PROMPT_TEMPLATE",
+    "COMPLETE_RAG_PROMPT_TEMPLATE",
 ]

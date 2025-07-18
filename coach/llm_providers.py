@@ -19,6 +19,14 @@ from coach.exceptions import (
     APIKeyMissingException
 )
 from coach.types import ModelName, LLMConfig
+from coach.embeddings import EmbeddingFactory
+
+# Try to import callbacks
+try:
+    from coach.callbacks import callback_manager
+    CALLBACKS_AVAILABLE = True
+except ImportError:
+    CALLBACKS_AVAILABLE = False
 
 
 class LLMProvider(ABC):
@@ -119,12 +127,14 @@ class LLMFactory:
     def create_llm(
         self, 
         model_name: Optional[str] = None,
+        use_callbacks: bool = True,
         **kwargs
     ) -> BaseChatModel:
         """Create an LLM instance.
         
         Args:
             model_name: Name of the model to use. If None, uses default from config.
+            use_callbacks: Whether to add callbacks for monitoring
             **kwargs: Additional arguments to pass to the LLM constructor
             
         Returns:
@@ -146,6 +156,11 @@ class LLMFactory:
         provider = self.providers[model_name]
         
         try:
+            # Add callbacks if available and requested
+            if use_callbacks and CALLBACKS_AVAILABLE:
+                if 'callbacks' not in kwargs:
+                    kwargs['callbacks'] = callback_manager.get_callbacks()
+            
             return provider.create_llm(model_name, **kwargs)
         except Exception as e:
             raise LLMInitializationException(
@@ -173,17 +188,32 @@ llm_factory = LLMFactory()
 
 
 # Convenience functions
-def get_llm(model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
+def get_llm(model_name: Optional[str] = None, use_callbacks: bool = True, **kwargs) -> BaseChatModel:
     """Get an LLM instance using the default factory.
     
     Args:
         model_name: Name of the model to use. If None, uses default from config.
+        use_callbacks: Whether to add callbacks for monitoring
         **kwargs: Additional arguments to pass to the LLM constructor
         
     Returns:
         An initialized LLM instance
     """
-    return llm_factory.create_llm(model_name, **kwargs)
+    return llm_factory.create_llm(model_name, use_callbacks=use_callbacks, **kwargs)
+
+
+def get_embeddings(provider: str = "openai", model: Optional[str] = None, **kwargs):
+    """Get an embeddings instance.
+    
+    Args:
+        provider: The embedding provider ('openai' or 'google')
+        model: The model name (optional, uses config default)
+        **kwargs: Additional parameters for the embedding model
+        
+    Returns:
+        A LangChain embeddings instance
+    """
+    return EmbeddingFactory.create_embeddings(provider, model, **kwargs)
 
 
 def get_supported_models() -> list[str]:

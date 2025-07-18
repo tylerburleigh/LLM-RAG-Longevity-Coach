@@ -1,7 +1,7 @@
 import streamlit as st
 from coach.longevity_coach import LongevityCoach
 from coach.utils import load_docs_from_jsonl, update_vector_store_from_docs, initialize_coach
-from coach.vector_store import PersistentVectorStore
+from coach.vector_store_factory import get_vector_store
 import os
 import logging
 
@@ -25,7 +25,7 @@ def initialize_session_state():
 # --- Coach Initialization ---
 @st.cache_resource
 def initialize_coach(model_name: str = "o3"):
-    vector_store = PersistentVectorStore()
+    vector_store = get_vector_store()
     if os.path.exists(DOCS_FILE):
         docs = load_docs_from_jsonl(DOCS_FILE)
         update_vector_store_from_docs(vector_store, docs)

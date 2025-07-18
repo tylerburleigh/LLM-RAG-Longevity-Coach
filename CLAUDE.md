@@ -28,6 +28,7 @@ EMBEDDING_MODEL=text-embedding-3-large
 DEFAULT_LLM_MODEL=o3
 DEFAULT_TOP_K=5
 DOCS_FILE=docs.jsonl
+USE_LANGCHAIN_CHAINS=false  # Enable advanced workflow chains
 ```
 
 ## High-Level Architecture
@@ -55,7 +56,7 @@ User Query → Search Planning → Query Generation → Hybrid Search → Contex
 2. **Data Layer** (`coach/models.py`, `coach/types.py`): Type-safe data structures
 3. **Provider Layer** (`coach/llm_providers.py`): Pluggable LLM provider system
 4. **Processing Layer** (`coach/longevity_coach.py`, `coach/search.py`): Core business logic
-5. **Storage Layer** (`coach/vector_store.py`): Hybrid search and document storage
+5. **Storage Layer** (`coach/langchain_vector_store.py`): LangChain-powered hybrid search and document storage
 6. **Presentation Layer** (`app.py`, `pages/`): Streamlit UI components
 
 ### Error Handling Strategy
@@ -165,7 +166,8 @@ Organized prompt templates by functionality:
 - `search.py`: Search query generation
 - `document.py`: Document processing and structuring
 - `guided_entry.py`: Guided data entry
-- `__init__.py`: Backward compatibility imports
+- `rag.py`: RAG workflow and chain-specific prompts
+- `__init__.py`: Centralized prompt exports
 
 ### Core Components
 
@@ -173,6 +175,7 @@ Organized prompt templates by functionality:
    - Centralized configuration with environment variable support
    - Validation and default values for all settings
    - API key management for different providers
+   - Streamlined configuration with minimal feature flags
 
 2. **Data Models** (`coach/models.py`):
    - Pydantic models for structured data validation
@@ -180,49 +183,74 @@ Organized prompt templates by functionality:
    - Consistent data structures throughout the application
 
 3. **LLM Provider System** (`coach/llm_providers.py`):
-   - Factory pattern for LLM initialization
+   - Factory pattern for LLM initialization with LangChain integration
    - Support for OpenAI (o3, o4-mini) and Google Gemini
-   - Extensible provider system for easy model additions
+   - Extensible provider system with automatic callback integration
+   - Unified embeddings management through LangChain
 
-4. **Hybrid Search System** (`coach/vector_store.py`):
+4. **Hybrid Search System** (`coach/langchain_vector_store.py`):
+   - LangChain FAISS integration with ensemble retrievers
    - Combines BM25 (keyword) and FAISS (semantic) search
-   - Configurable storage locations and parameters
-   - Improved error handling and type safety
+   - Advanced retrieval strategies and automatic persistence
+   - Multi-strategy retrieval with rank fusion
 
 5. **Search and Retrieval** (`coach/search.py`):
+   - Advanced retrieval strategies using LangChain retrievers
+   - Multi-query expansion and contextual compression
    - Strategic search planning with LLM assistance
-   - Multi-category query generation
-   - Context retrieval with deduplication
+   - Context retrieval with intelligent deduplication
 
 6. **Document Processing** (`coach/document_processor.py`):
-   - PDF text extraction with error handling
-   - LLM-powered document structuring
-   - Conversion to typed Document models
+   - LangChain PDF processing with PyMuPDFLoader
+   - Intelligent text splitting and chunking via RecursiveCharacterTextSplitter
+   - LLM-powered document structuring with validation
+   - Configurable chunking strategies for different document types
 
 7. **Prompt Management** (`coach/prompts/`):
    - Organized prompt templates by functionality
    - Modular prompt system for maintainability
-   - Version-controlled prompt templates
+   - Includes RAG-specific prompts for chain workflows
+   - Centralized prompt template management
 
-8. **Longevity Coach** (`coach/longevity_coach.py`):
-   - Main orchestration class for insights generation
-   - Clarifying questions and insights generation
-   - Progress tracking and user interaction
+8. **Advanced Retrievers** (`coach/retrievers.py`):
+   - Multi-strategy retrieval with LangChain retrievers
+   - Contextual compression and embedding filtering
+   - Rank fusion for combining multiple retrieval methods
+   - Configurable retrieval strategies
 
-9. **Exception Handling** (`coach/exceptions.py`):
-   - Custom exception hierarchy for better error handling
-   - Structured error reporting and debugging
-   - Module-specific exception types
+9. **Observability & Monitoring** (`coach/callbacks.py`):
+   - LangChain callback system for comprehensive monitoring
+   - Performance tracking and cost analysis
+   - Detailed logging of all LLM and retrieval operations
+   - Configurable callback handlers
 
-10. **Type Definitions** (`coach/types.py`):
+10. **Workflow Chains** (`coach/chains.py`):
+    - Complete RAG workflows using LangChain chains
+    - Structured output generation with Pydantic integration
+    - Composable chain components for different tasks
+    - Advanced workflow orchestration
+
+11. **Longevity Coach** (`coach/longevity_coach.py`):
+    - Main orchestration class for insights generation
+    - Clarifying questions and insights generation
+    - Optional LangChain chains integration
+    - Progress tracking and user interaction
+
+12. **Exception Handling** (`coach/exceptions.py`):
+    - Custom exception hierarchy for better error handling
+    - Structured error reporting and debugging
+    - Module-specific exception types including chain execution errors
+
+13. **Type Definitions** (`coach/types.py`):
     - Common type aliases and TypedDict classes
     - Enhanced type safety throughout the codebase
     - Consistent type annotations
 
-11. **Knowledge Base Management**:
+14. **Knowledge Base Management**:
     - Primary storage in `docs.jsonl` (JSON Lines format)
     - Multiple ingestion methods: PDF upload, guided entry, direct editing
     - Data structure includes metadata fields for categorization
+    - Automatic migration to LangChain vector stores
 
 ### Key Workflows
 
@@ -233,26 +261,30 @@ Organized prompt templates by functionality:
 2. **Data Management** (`pages/`):
    - `1_Knowledge_Base.py`: Direct spreadsheet-like editing
    - `2_Upload_Documents.py`: PDF processing and ingestion
-   - `2_Guided_Entry.py` & `3_Guided_Entry.py`: Conversational data entry
+   - `3_Guided_Entry.py`: Conversational data entry
 
 ### Important Implementation Details
 
 - **State Management**: Uses Streamlit session state for persistence
-- **Search Strategy**: Generates multiple search queries for comprehensive retrieval
+- **Search Strategy**: Advanced multi-strategy retrieval with LangChain retrievers
 - **Data Format**: JSONL with structured fields (category, subcategory, details, source, etc.)
-- **Vector Store**: Persisted FAISS index with document metadata in pickle format
-- **Configuration**: Environment-based configuration with validation
+- **Vector Store**: LangChain FAISS integration with ensemble retrievers and automatic persistence
+- **Configuration**: Streamlined environment-based configuration with minimal feature flags
 - **Error Handling**: Comprehensive exception system with custom error types
-- **Type Safety**: Full type annotations and Pydantic models
-- **Modular Design**: Separated concerns with clear module boundaries
+- **Type Safety**: Full type annotations and Pydantic models throughout
+- **Modular Design**: LangChain-first architecture with clear separation of concerns
+- **Observability**: Built-in performance monitoring and cost tracking via callbacks
+- **Workflow Orchestration**: Optional LangChain chains for advanced RAG workflows
 
 ### Development Notes
 
-- **Architecture**: Refactored for better maintainability and separation of concerns
+- **Architecture**: Uses LangChain ecosystem for maximum compatibility and extensibility
 - **Type Safety**: Enhanced with comprehensive type hints and Pydantic models
-- **Error Handling**: Improved with custom exception hierarchy
-- **Configuration**: Centralized and environment-variable driven
-- **Extensibility**: Modular design allows easy addition of new features
+- **Error Handling**: Robust exception hierarchy with chain execution error handling
+- **Configuration**: Centralized and environment-variable driven with streamlined options
+- **Extensibility**: LangChain-based modular design allows easy addition of new features
+- **Performance**: Built-in monitoring and optimization through LangChain callbacks
+- **Maintainability**: Single implementation path eliminates dual system complexity
 - **Testing**: No formal testing framework currently implemented
 - **Linting**: No linting configuration present
 - **User Data**: Stored in `user_data/` directory
