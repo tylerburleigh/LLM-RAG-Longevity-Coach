@@ -2,9 +2,15 @@
 import fitz  # PyMuPDF
 import json
 from langchain_core.messages import HumanMessage
-from coach.prompts import DOCUMENT_STRUCTURE_PROMPT_TEMPLATE
 import logging
 from typing import List
+
+from coach.prompts import DOCUMENT_STRUCTURE_PROMPT_TEMPLATE
+from coach.models import Document
+from coach.exceptions import (
+    PDFExtractionException,
+    DocumentStructuringException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +23,9 @@ def extract_text_from_pdf(file_stream) -> str:
 
     Returns:
         The extracted text as a single string.
+        
+    Raises:
+        PDFExtractionException: If text extraction fails.
     """
     text = ""
     try:
@@ -25,10 +34,10 @@ def extract_text_from_pdf(file_stream) -> str:
                 text += page.get_text()
     except Exception as e:
         logger.error(f"Error extracting text from PDF: {e}")
-        return ""
+        raise PDFExtractionException(f"Failed to extract text from PDF: {str(e)}") from e
     return text
 
-def create_structured_documents(raw_text: str, llm) -> List[dict]:
+def create_structured_documents(raw_text: str, llm) -> List[Document]:
     """
     Uses an LLM to convert raw text into a list of structured JSON documents.
 
@@ -37,7 +46,10 @@ def create_structured_documents(raw_text: str, llm) -> List[dict]:
         llm: The language model instance to use.
 
     Returns:
-        A list of dictionaries, each representing a structured document.
+        A list of Document objects, each representing a structured document.
+        
+    Raises:
+        DocumentStructuringException: If document structuring fails.
     """
     prompt = DOCUMENT_STRUCTURE_PROMPT_TEMPLATE.format(raw_text=raw_text)
     messages = [HumanMessage(content=prompt)]
@@ -58,13 +70,25 @@ def create_structured_documents(raw_text: str, llm) -> List[dict]:
             line = line.strip()
             if line:
                 try:
-                    structured_docs.append(json.loads(line))
+                    doc_dict = json.loads(line)
+                    # Convert to Document model
+                    doc = Document(
+                        doc_id=doc_dict.get("doc_id", ""),
+                        text=doc_dict.get("text", ""),
+                        metadata=doc_dict.get("metadata", {})
+                    )
+                    structured_docs.append(doc)
                 except json.JSONDecodeError:
                     logger.warning(f"Skipping line that is not valid JSON: {line}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Failed to create Document from: {line}. Error: {e}")
                     continue
         
         return structured_docs
 
     except Exception as e:
         logger.error(f"An unexpected error occurred while creating structured documents: {e}")
-        return [] 
+        raise DocumentStructuringException(
+            f"Failed to create structured documents: {str(e)}"
+        ) from e 
