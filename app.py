@@ -49,8 +49,6 @@ def display_chat_history():
             # This is a bit of a hack to render raw HTML for insights
             if isinstance(content, dict) and "insights" in content:
                 render_insights(content["insights"])
-                if content.get("suggestions"):
-                    render_fine_tune_suggestions(content["suggestions"])
             elif isinstance(content, list):  # Backwards compatibility for old format
                 render_insights(content)
             else:
@@ -108,32 +106,6 @@ def render_insights(insights: list):
                     st.session_state.feedback[i] = "down" if feedback_state != "down" else None
                     st.rerun()
 
-def render_fine_tune_suggestions(suggestions: list):
-    """Renders the fine-tuning suggestions in the UI."""
-    # --- Define styles for visual presentation ---
-    IMPORTANCE_EMOJI = {"High": "🔥", "Medium": "⭐", "Low": "⚪️"}
-    CONFIDENCE_EMOJI = {"High": "✅", "Medium": "✔️", "Low": "❔"}
-
-    if suggestions:
-        st.markdown("### 💡 Suggestions for Next Steps")
-        st.info(
-            "To further refine your health plan, you might consider collecting the following data:"
-        )
-        for suggestion in suggestions:
-            with st.container(border=True):
-                st.markdown(f"#### {suggestion.suggestion}")
-                cols = st.columns(2)
-                with cols[0]:
-                    st.markdown(
-                        f"**Importance:** {IMPORTANCE_EMOJI.get(suggestion.importance, '')} {suggestion.importance}"
-                    )
-                with cols[1]:
-                    st.markdown(
-                        f"**Confidence:** {CONFIDENCE_EMOJI.get(suggestion.confidence, '')} {suggestion.confidence}"
-                    )
-                st.divider()
-                with st.expander("View Rationale"):
-                    st.markdown(suggestion.rationale)
 
 def handle_chat_input(coach: LongevityCoach):
     if st.session_state.app_state != "CONVERSATION_ENDED":
@@ -165,7 +137,7 @@ def handle_chat_input(coach: LongevityCoach):
                         def progress_callback(message: str):
                             status.write(message)
 
-                        insights, fine_tune_suggestions = coach.generate_insights(
+                        insights = coach.generate_insights(
                             initial_query=st.session_state.initial_query,
                             clarifying_questions=st.session_state.clarifying_questions,
                             user_answers_str=user_answers,
@@ -176,12 +148,10 @@ def handle_chat_input(coach: LongevityCoach):
                         )
 
                     render_insights(insights)
-                    render_fine_tune_suggestions(fine_tune_suggestions)
 
-                # Store insights and suggestions together in the chat history
+                # Store insights in the chat history
                 assistant_response = {
                     "insights": insights,
-                    "suggestions": fine_tune_suggestions,
                 }
                 st.session_state.messages.append(
                     {"role": "assistant", "content": assistant_response}

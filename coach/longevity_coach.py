@@ -7,13 +7,10 @@ from coach.models import (
     ClarifyingQuestions,
     Insight,
     Insights,
-    FineTuneSuggestion,
-    FineTuneSuggestions,
 )
 from coach.prompts import (
     CLARIFYING_QUESTIONS_PROMPT_TEMPLATE,
     INSIGHTS_PROMPT_TEMPLATE,
-    FINE_TUNE_PROMPT_TEMPLATE,
 )
 from coach.llm_providers import get_llm
 from coach.types import ProgressCallback
@@ -33,9 +30,6 @@ class LongevityCoach:
             [ClarifyingQuestions],
             tool_choice="ClarifyingQuestions",
         )
-        self.fine_tune_llm = self.llm.bind_tools(
-            [FineTuneSuggestions], tool_choice="FineTuneSuggestions"
-        )
 
     def generate_clarifying_questions(self, query: str) -> List[str]:
         """Generate clarifying questions based on the user's query."""
@@ -48,36 +42,6 @@ class LongevityCoach:
         questions_obj = ClarifyingQuestions.model_validate(tool_args)
         return questions_obj.questions
 
-    def generate_fine_tune_suggestions(
-        self,
-        initial_query: str,
-        clarifying_questions: List[str],
-        user_answers_str: str,
-        context_str: str,
-        insights: List[Dict[str, Any]],
-    ) -> List[FineTuneSuggestion]:
-        """Generate suggestions for fine-tuning the health plan."""
-        questions_str = "\n".join(f"- {q}" for q in clarifying_questions)
-        insights_str = "\n\n".join(
-            f"Insight: {i['insight']}\nRationale: {i['rationale']}" for i in insights
-        )
-
-        prompt = FINE_TUNE_PROMPT_TEMPLATE.format(
-            context_str=context_str,
-            initial_query=initial_query,
-            clarifying_questions=questions_str,
-            user_answers_str=user_answers_str,
-            insights=insights_str,
-        )
-
-        messages = [HumanMessage(content=prompt)]
-        response = self.fine_tune_llm.invoke(messages)
-
-        if not response.tool_calls:
-            return []
-        tool_args = response.tool_calls[0]["args"]
-        suggestions_obj = FineTuneSuggestions.model_validate(tool_args)
-        return suggestions_obj.suggestions
 
     def generate_insights(
         self,
@@ -85,7 +49,7 @@ class LongevityCoach:
         clarifying_questions: List[str],
         user_answers_str: str,
         progress_callback: Optional[ProgressCallback] = None,
-    ) -> Tuple[List[Insight], List[FineTuneSuggestion]]:
+    ) -> List[Insight]:
         """Generate insights based on the user's query and answers."""
         if progress_callback:
             progress_callback("🧠 Planning search strategy...")
@@ -112,7 +76,7 @@ class LongevityCoach:
         response = self.insights_llm.invoke(messages)
 
         if not response.tool_calls:
-            return [], []
+            return []
         tool_args = response.tool_calls[0]["args"]
         insights_obj = Insights.model_validate(tool_args)
 
@@ -125,17 +89,5 @@ class LongevityCoach:
             ),
             reverse=True,
         )
-        insights_list = [i.model_dump() for i in insights_obj.insights]
 
-        if progress_callback:
-            progress_callback("💡 Generating ideas for other data to collect...")
-
-        fine_tune_suggestions = self.generate_fine_tune_suggestions(
-            initial_query,
-            clarifying_questions,
-            user_answers_str,
-            context_str,
-            insights_list,
-        )
-
-        return insights_obj.insights, fine_tune_suggestions
+        return insights_obj.insights

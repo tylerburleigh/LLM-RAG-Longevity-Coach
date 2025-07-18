@@ -65,36 +65,6 @@ class Insights(BaseModel):
     )
 
 
-# --- Fine-Tune Suggestion Models ---
-class FineTuneSuggestion(BaseModel):
-    """A single suggestion for a new measurement, data, test, or diagnostic to collect."""
-    suggestion: str = Field(
-        ..., 
-        description="The core suggestion."
-    )
-    rationale: str = Field(
-        ...,
-        description="The supporting analysis and rationale for the suggestion."
-    )
-    importance: Literal["Low", "Medium", "High"] = Field(
-        ...,
-        description="An assessment of how important this suggestion is for the user's health."
-    )
-    confidence: Literal["Low", "Medium", "High"] = Field(
-        ...,
-        description="Your confidence in the suggestion based on the available data."
-    )
-
-
-class FineTuneSuggestions(BaseModel):
-    """A list of suggestions for new measurements, data, tests, or diagnostics to collect."""
-    suggestions: List[FineTuneSuggestion] = Field(
-        ...,
-        description="A list of 1-3 suggestions for new data to collect.",
-        min_items=1,
-        max_items=3
-    )
-
 
 # --- Search Strategy Models ---
 class SearchStrategy(BaseModel):

@@ -45,7 +45,6 @@ class Config:
     # Insight Generation
     MAX_INSIGHTS: int = int(os.getenv("MAX_INSIGHTS", "5"))
     MAX_CLARIFYING_QUESTIONS: int = int(os.getenv("MAX_CLARIFYING_QUESTIONS", "3"))
-    MAX_FINE_TUNE_SUGGESTIONS: int = int(os.getenv("MAX_FINE_TUNE_SUGGESTIONS", "3"))
     
     # Cache Configuration
     CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))  # 1 hour default

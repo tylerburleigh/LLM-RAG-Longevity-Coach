@@ -107,7 +107,6 @@ MAX_DOCUMENT_LENGTH=10000                    # Default: 10000
 # Insight Generation
 MAX_INSIGHTS=5                               # Default: 5
 MAX_CLARIFYING_QUESTIONS=3                   # Default: 3
-MAX_FINE_TUNE_SUGGESTIONS=3                  # Default: 3
 
 # Logging
 LOG_LEVEL=INFO                               # Default: "INFO"
@@ -133,7 +132,6 @@ Pydantic data models for type safety and validation:
 - `Document`: Knowledge base document structure
 - `ClarifyingQuestions`: User question clarification
 - `Insight`/`Insights`: Generated insights and recommendations
-- `FineTuneSuggestion`/`FineTuneSuggestions`: Data collection suggestions
 - `SearchStrategy`: Search planning structure
 - `DocumentProcessingResult`: Processing status and results
 
@@ -165,7 +163,6 @@ Organized prompt templates by functionality:
 - `insights.py`: Insight and recommendation generation
 - `planning.py`: Search strategy planning
 - `search.py`: Search query generation
-- `fine_tune.py`: Fine-tune suggestions
 - `document.py`: Document processing and structuring
 - `guided_entry.py`: Guided data entry
 - `__init__.py`: Backward compatibility imports
@@ -209,7 +206,7 @@ Organized prompt templates by functionality:
 
 8. **Longevity Coach** (`coach/longevity_coach.py`):
    - Main orchestration class for insights generation
-   - Clarifying questions and fine-tune suggestions
+   - Clarifying questions and insights generation
    - Progress tracking and user interaction
 
 9. **Exception Handling** (`coach/exceptions.py`):
