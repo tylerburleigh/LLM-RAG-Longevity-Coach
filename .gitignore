@@ -71,6 +71,8 @@ tmp/
 # Project-specific files and directories
 # Persisted vector store data
 vector_store_data/
+user_data/
+fitbit_data/
 
 # User-supplied data file which contains sensitive information
 docs.jsonl
