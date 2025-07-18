@@ -5,15 +5,104 @@ import shutil
 from langchain_core.messages import HumanMessage, AIMessage
 from coach.prompts import GUIDED_ENTRY_PROMPT_TEMPLATE
 from coach.longevity_coach import LongevityCoach
+from coach.auth import require_authentication
+from coach.navigation import display_page_footer
+from coach.page_setup import setup_authenticated_page
 
 # --- Configuration ---
 DOCS_FILE = "docs.jsonl"
 VECTOR_STORE_PATH = "vector_store_data"
 
-# --- Page Setup ---
-st.set_page_config(page_title="Add Data via Chat", layout="wide")
-st.title("🗣️ Add Data via Chat")
-st.markdown("Describe the information you'd like to add, and the AI assistant will help structure it for the knowledge base.")
+@require_authentication
+def show_guided_entry():
+    """Protected function to show the guided entry page."""
+    # Set up authenticated page with navigation
+    user_context = setup_authenticated_page("Guided Data Entry", "🗣️")
+    if not user_context:
+        return
+    
+    st.markdown(f"""
+    **Welcome, {user_context.name}!**
+    
+    Describe the information you'd like to add, and the AI assistant will help structure it for your knowledge base.
+    """)
+    
+    # Show user data location
+    st.info(f"💾 Data will be added to: `{DOCS_FILE}` (User: {user_context.email})")
+    
+    # Run the main logic
+    guided_entry_interface()
+    
+    # Display footer
+    display_page_footer()
+
+
+def guided_entry_interface():
+    """Main guided entry interface."""
+    
+    # --- Main Page Logic ---
+    llm = get_llm()
+
+    # Initialize session state
+    if "guided_messages" not in st.session_state:
+        st.session_state.guided_messages = [AIMessage(content="What information would you like to add to the knowledge base?")]
+    if "proposed_entry" not in st.session_state:
+        st.session_state.proposed_entry = None
+
+    # Display chat history
+    for msg in st.session_state.guided_messages:
+        st.chat_message(msg.type).write(msg.content)
+
+    # Display proposed entry and confirmation buttons
+    if st.session_state.proposed_entry:
+        with st.container(border=True):
+            st.subheader("Proposed Knowledge Base Entry")
+            st.text(f"Document ID: {st.session_state.proposed_entry.get('doc_id')}")
+            st.text_area("Document Text", value=st.session_state.proposed_entry.get('text', ''), height=150)
+            st.json(st.session_state.proposed_entry.get('metadata', {}))
+
+            col1, col2, col3 = st.columns([1,1,5])
+            with col1:
+                if st.button("✅ Looks Good, Save It!", type="primary"):
+                    with st.status("Saving and re-indexing...", expanded=True) as status:
+                        status.write("Appending to knowledge base file...")
+                        with open(DOCS_FILE, "a") as f:
+                            f.write(json.dumps(st.session_state.proposed_entry) + "\n")
+                        
+                        status.write("Purging old search index...")
+                        if os.path.exists(VECTOR_STORE_PATH):
+                            shutil.rmtree(VECTOR_STORE_PATH)
+
+                        status.write("Clearing app cache to force re-load...")
+                        st.cache_resource.clear()
+                        
+                        status.update(label="Save Complete!", state="complete")
+
+                    st.success("Entry saved successfully! The knowledge base is now updated.")
+                    st.session_state.proposed_entry = None
+                    st.session_state.guided_messages.append(AIMessage(content="Great! What else can I help you add?"))
+                    st.rerun()
+
+            with col2:
+                if st.button("❌ No, start over"):
+                    st.session_state.proposed_entry = None
+                    st.session_state.guided_messages.append(AIMessage(content="Okay, let's scrap that. What would you like to add instead?"))
+                    st.rerun()
+
+    # Handle user input
+    if prompt := st.chat_input("Describe the data or provide feedback..."):
+        st.session_state.guided_messages.append(HumanMessage(content=prompt))
+        st.chat_message("human").write(prompt)
+
+        with st.spinner("Thinking..."):
+            entry = generate_structured_entry(st.session_state.guided_messages, prompt, llm)
+        
+        if entry:
+            st.session_state.proposed_entry = entry
+            st.rerun()
+        else:
+            st.session_state.guided_messages.append(AIMessage(content="I had trouble creating a valid entry. Could you try describing it differently?"))
+            st.rerun()
 
 # --- Helper Functions ---
 @st.cache_resource
@@ -42,67 +131,7 @@ def generate_structured_entry(history, user_input, llm):
         st.error(f"The AI failed to generate a valid JSON structure. Please try rephrasing your request. Error: {e}")
         return None
 
-# --- Main Page Logic ---
-llm = get_llm()
 
-# Initialize session state
-if "guided_messages" not in st.session_state:
-    st.session_state.guided_messages = [AIMessage(content="What information would you like to add to the knowledge base?")]
-if "proposed_entry" not in st.session_state:
-    st.session_state.proposed_entry = None
-
-# Display chat history
-for msg in st.session_state.guided_messages:
-    st.chat_message(msg.type).write(msg.content)
-
-# Display proposed entry and confirmation buttons
-if st.session_state.proposed_entry:
-    with st.container(border=True):
-        st.subheader("Proposed Knowledge Base Entry")
-        st.text(f"Document ID: {st.session_state.proposed_entry.get('doc_id')}")
-        st.text_area("Document Text", value=st.session_state.proposed_entry.get('text', ''), height=150)
-        st.json(st.session_state.proposed_entry.get('metadata', {}))
-
-        col1, col2, col3 = st.columns([1,1,5])
-        with col1:
-            if st.button("✅ Looks Good, Save It!", type="primary"):
-                with st.status("Saving and re-indexing...", expanded=True) as status:
-                    status.write("Appending to knowledge base file...")
-                    with open(DOCS_FILE, "a") as f:
-                        f.write(json.dumps(st.session_state.proposed_entry) + "\n")
-                    
-                    status.write("Purging old search index...")
-                    if os.path.exists(VECTOR_STORE_PATH):
-                        shutil.rmtree(VECTOR_STORE_PATH)
-
-                    status.write("Clearing app cache to force re-load...")
-                    st.cache_resource.clear()
-                    
-                    status.update(label="Save Complete!", state="complete")
-
-                st.success("Entry saved successfully! The knowledge base is now updated.")
-                st.session_state.proposed_entry = None
-                st.session_state.guided_messages.append(AIMessage(content="Great! What else can I help you add?"))
-                st.rerun()
-
-        with col2:
-            if st.button("❌ No, start over"):
-                st.session_state.proposed_entry = None
-                st.session_state.guided_messages.append(AIMessage(content="Okay, let's scrap that. What would you like to add instead?"))
-                st.rerun()
-
-
-# Handle user input
-if prompt := st.chat_input("Describe the data or provide feedback..."):
-    st.session_state.guided_messages.append(HumanMessage(content=prompt))
-    st.chat_message("human").write(prompt)
-
-    with st.spinner("Thinking..."):
-        entry = generate_structured_entry(st.session_state.guided_messages, prompt, llm)
-    
-    if entry:
-        st.session_state.proposed_entry = entry
-        st.rerun()
-    else:
-        st.session_state.guided_messages.append(AIMessage(content="I had trouble creating a valid entry. Could you try describing it differently?"))
-        st.rerun() 
+# --- Main execution ---
+if __name__ == "__main__":
+    show_guided_entry() 

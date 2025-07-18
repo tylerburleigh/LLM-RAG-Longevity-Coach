@@ -15,10 +15,23 @@ pip install -r requirements.txt
 ```
 
 ### Environment Setup
-Create a `.env` file with required API keys:
+Create a `.env` file with required API keys. Copy the template and fill in your values:
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your actual values:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 GOOGLE_API_KEY=your_google_api_key_here  # Optional, for Gemini models
+
+# OAuth2 Configuration (required for authentication)
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+OAUTH_REDIRECT_URI=http://localhost:8501/
+
+# Development Configuration (optional)
+OAUTH_INSECURE_TRANSPORT=true  # Allows HTTP for local development
 ```
 
 Optional configuration environment variables:

@@ -6,6 +6,10 @@ Settings can be overridden via environment variables.
 
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+load_dotenv()
 
 
 class Config:
@@ -40,6 +44,15 @@ class Config:
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    # OAuth2 Configuration
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    OAUTH_REDIRECT_URI: str = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8501/")
+    SESSION_TIMEOUT_HOURS: int = int(os.getenv("SESSION_TIMEOUT_HOURS", "24"))
+    
+    # Development Configuration
+    OAUTH_INSECURE_TRANSPORT: bool = os.getenv("OAUTH_INSECURE_TRANSPORT", "true").lower() == "true"
     
     # API Keys (handled separately, just documenting expected env vars)
     # OPENAI_API_KEY: Set via environment variable
