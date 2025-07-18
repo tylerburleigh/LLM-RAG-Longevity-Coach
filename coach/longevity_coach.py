@@ -1,88 +1,32 @@
 # coach/longevity_coach.py
-from typing import List, Callable, Optional, Literal, Dict, Any, Tuple
-from langchain_openai import ChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import List, Callable, Optional, Dict, Any, Tuple
 from langchain_core.messages import HumanMessage
-from pydantic import BaseModel, Field
+
 from coach.search import plan_search, retrieve_context
+from coach.models import (
+    ClarifyingQuestions,
+    Insight,
+    Insights,
+    FineTuneSuggestion,
+    FineTuneSuggestions,
+)
 from coach.prompts import (
     CLARIFYING_QUESTIONS_PROMPT_TEMPLATE,
     INSIGHTS_PROMPT_TEMPLATE,
     FINE_TUNE_PROMPT_TEMPLATE,
 )
+from coach.llm_providers import get_llm
+from coach.types import ProgressCallback
+from coach.config import config
 
 
-# --- Pydantic Models for Structured Output ---
-class ClarifyingQuestions(BaseModel):
-    """A list of clarifying questions to ask the user."""
-
-    questions: List[str] = Field(
-        ..., description="A list of 2-3 clarifying questions."
-    )
-
-
-class Insight(BaseModel):
-    """A single insight or recommendation."""
-
-    insight: str = Field(..., description="The core insight or recommendation.")
-    rationale: str = Field(
-        ...,
-        description="The supporting analysis and rationale for the insight, based on the provided context. (Don't include meta-comments)",
-    )
-    data_summary: str = Field(
-        ...,
-        description="A summary of the specific data points from the 'Context from health data' that were used to form the insight.",
-    )
-    importance: Literal["Low", "Medium", "High"] = Field(
-        ...,
-        description="An assessment of how important this insight is for the user's health.",
-    )
-    confidence: Literal["Low", "Medium", "High"] = Field(
-        ...,
-        description="Your confidence in the insight based on the available data.",
-    )
-
-
-class Insights(BaseModel):
-    """A list of insights or recommendations."""
-
-    insights: List[Insight] = Field(
-        ..., description="A list of 1-5 insights or recommendations."
-    )
-
-
-class FineTuneSuggestion(BaseModel):
-    """A single suggestion for a new measurement, data, test, or diagnostic to collect."""
-
-    suggestion: str = Field(..., description="The core suggestion.")
-    rationale: str = Field(
-        ...,
-        description="The supporting analysis and rationale for the suggestion.",
-    )
-    importance: Literal["Low", "Medium", "High"] = Field(
-        ...,
-        description="An assessment of how important this suggestion is for the user's health.",
-    )
-    confidence: Literal["Low", "Medium", "High"] = Field(
-        ...,
-        description="Your confidence in the suggestion based on the available data.",
-    )
-
-
-class FineTuneSuggestions(BaseModel):
-    """A list of suggestions for new measurements, data, tests, or diagnostics to collect."""
-
-    suggestions: List[FineTuneSuggestion] = Field(
-        ...,
-        description="A list of 1-3 suggestions for new data to collect.",
-    )
 
 
 class LongevityCoach:
-    def __init__(self, vector_store, model_name: str = "o3"):
+    def __init__(self, vector_store, model_name: Optional[str] = None):
         self.vector_store = vector_store
-        self.model_name = model_name
-        self.llm = self._get_llm(self.model_name)
+        self.model_name = model_name or config.DEFAULT_LLM_MODEL
+        self.llm = get_llm(self.model_name)
 
         self.insights_llm = self.llm.bind_tools([Insights], tool_choice="Insights")
         self.clarifying_questions_llm = self.llm.bind_tools(
@@ -92,14 +36,6 @@ class LongevityCoach:
         self.fine_tune_llm = self.llm.bind_tools(
             [FineTuneSuggestions], tool_choice="FineTuneSuggestions"
         )
-
-    def _get_llm(self, model_name: str):
-        if model_name in ["o4-mini", "o3"]:
-            return ChatOpenAI(temperature=1, model_name=model_name)
-        elif model_name == "gemini-2.5-pro":
-            return ChatGoogleGenerativeAI(temperature=1, model=model_name)
-        else:
-            raise ValueError(f"Unknown model: {model_name}")
 
     def generate_clarifying_questions(self, query: str) -> List[str]:
         """Generate clarifying questions based on the user's query."""
@@ -148,7 +84,7 @@ class LongevityCoach:
         initial_query: str,
         clarifying_questions: List[str],
         user_answers_str: str,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Optional[ProgressCallback] = None,
     ) -> Tuple[List[Insight], List[FineTuneSuggestion]]:
         """Generate insights based on the user's query and answers."""
         if progress_callback:

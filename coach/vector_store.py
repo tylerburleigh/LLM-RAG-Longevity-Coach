@@ -4,35 +4,58 @@ import logging
 import faiss
 import numpy as np
 from openai import OpenAI
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from rank_bm25 import BM25Okapi
 
+from coach.config import config
+from coach.exceptions import (
+    VectorStoreException,
+    VectorStoreSaveException,
+    VectorStoreLoadException,
+    EmbeddingException,
+)
+from coach.types import (
+    DocumentID,
+    Query,
+    EmbeddingVector,
+    VectorStoreDocument,
+    SearchResult,
+)
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PersistentVectorStore:
     def __init__(self, 
-                 store_folder="vector_store_data", 
-                 index_filename="faiss_index.bin", 
-                 docs_filename="documents.pkl",
-                 embedding_model="text-embedding-3-large",
-                 vector_dim=3072):
+                 store_folder: Optional[str] = None, 
+                 index_filename: Optional[str] = None, 
+                 docs_filename: Optional[str] = None,
+                 embedding_model: Optional[str] = None,
+                 vector_dim: Optional[int] = None):
         """
         Initializes the vector store.
         """
-        self.store_folder = store_folder
-        self.embedding_model = embedding_model
-        self.dimension = vector_dim
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.bm25_index = None
-
-        if not os.path.exists(store_folder):
-            os.makedirs(store_folder)
-            logger.info(f"Created folder: {store_folder}")
+        self.store_folder = store_folder or config.VECTOR_STORE_FOLDER
+        self.embedding_model = embedding_model or config.EMBEDDING_MODEL
+        self.dimension = vector_dim or config.EMBEDDING_DIMENSION
         
-        self.index_path = os.path.join(store_folder, index_filename)
-        self.docs_path = os.path.join(store_folder, docs_filename)
+        api_key = config.get_api_key("openai")
+        if not api_key:
+            raise VectorStoreException(
+                "OpenAI API key not found. Please set OPENAI_API_KEY environment variable."
+            )
+        self.client = OpenAI(api_key=api_key)
+        self.bm25_index = None
+        
+        index_filename = index_filename or config.FAISS_INDEX_FILENAME
+        docs_filename = docs_filename or config.DOCUMENTS_FILENAME
+
+        if not os.path.exists(self.store_folder):
+            os.makedirs(self.store_folder)
+            logger.info(f"Created folder: {self.store_folder}")
+        
+        self.index_path = os.path.join(self.store_folder, index_filename)
+        self.docs_path = os.path.join(self.store_folder, docs_filename)
         
         if os.path.exists(self.index_path) and os.path.exists(self.docs_path):
             self.index = faiss.read_index(self.index_path)
@@ -56,13 +79,16 @@ class PersistentVectorStore:
         else:
             self.bm25_index = None
 
-    def get_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def get_embeddings(self, texts: List[str]) -> List[EmbeddingVector]:
         """Get embeddings for a list of texts using OpenAI's API."""
-        response = self.client.embeddings.create(
-            input=texts,
-            model=self.embedding_model
-        )
-        return [item.embedding for item in response.data]
+        try:
+            response = self.client.embeddings.create(
+                input=texts,
+                model=self.embedding_model
+            )
+            return [item.embedding for item in response.data]
+        except Exception as e:
+            raise EmbeddingException(f"Failed to generate embeddings: {str(e)}") from e
 
     def add_documents(self, docs: List[Dict[str, Any]]):
         """Add a list of documents to the vector store."""
@@ -83,19 +109,22 @@ class PersistentVectorStore:
         self._build_bm25_index() # Rebuild BM25 index after adding new documents
         logger.info(f"Successfully added documents. Total documents: {len(self.documents)}")
 
-    def add_document(self, doc_id: str, text: str, metadata: Dict = None):
+    def add_document(self, doc_id: DocumentID, text: str, metadata: Optional[Dict] = None):
         """Add a single document to the vector store."""
         doc = {"doc_id": doc_id, "text": text, "metadata": metadata}
         self.add_documents([doc])
 
     def save(self):
         """Save the vector store (both index and documents) to the specified folder."""
-        faiss.write_index(self.index, self.index_path)
-        with open(self.docs_path, "wb") as f:
-            pickle.dump(self.documents, f)
-        logger.info(f"Saved vector store with {len(self.documents)} documents in folder {self.store_folder}.")
+        try:
+            faiss.write_index(self.index, self.index_path)
+            with open(self.docs_path, "wb") as f:
+                pickle.dump(self.documents, f)
+            logger.info(f"Saved vector store with {len(self.documents)} documents in folder {self.store_folder}.")
+        except Exception as e:
+            raise VectorStoreSaveException(f"Failed to save vector store: {str(e)}") from e
 
-    def semantic_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+    def semantic_search(self, query: Query, top_k: int) -> List[VectorStoreDocument]:
         """Performs semantic search using FAISS."""
         query_embedding = self.get_embeddings([query])[0]
         query_np = np.expand_dims(query_embedding, axis=0).astype(np.float32)
@@ -108,7 +137,7 @@ class PersistentVectorStore:
                 results.append(self.documents[idx])
         return results
 
-    def keyword_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+    def keyword_search(self, query: Query, top_k: int) -> List[VectorStoreDocument]:
         """Performs keyword search using BM25."""
         if not self.bm25_index:
             return []
@@ -121,12 +150,15 @@ class PersistentVectorStore:
 
         return [self.documents[i] for i in top_indices if doc_scores[i] > 0]
 
-    def search(self, query: str, top_k: int = 5, k_rrf: int = 60) -> List[Dict[str, Any]]:
+    def search(self, query: Query, top_k: Optional[int] = None, k_rrf: Optional[int] = None) -> List[VectorStoreDocument]:
         """
         Performs hybrid search by combining semantic and keyword search results using RRF.
         """
-        semantic_results = self.semantic_search(query, top_k=top_k * 2)
-        keyword_results = self.keyword_search(query, top_k=top_k * 2)
+        top_k = top_k or config.DEFAULT_TOP_K
+        k_rrf = k_rrf or config.RRF_K
+        
+        semantic_results = self.semantic_search(query, top_k=top_k * config.SEARCH_MULTIPLIER)
+        keyword_results = self.keyword_search(query, top_k=top_k * config.SEARCH_MULTIPLIER)
 
         rrf_scores = {}
         all_docs = {}
