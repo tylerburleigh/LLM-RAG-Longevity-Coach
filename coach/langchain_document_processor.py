@@ -1,6 +1,9 @@
 # coach/langchain_document_processor.py
 import logging
-from typing import List, Optional, IO
+import os
+import json
+import tempfile
+from typing import List, Optional, IO, TYPE_CHECKING
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LangChainDocument
@@ -14,6 +17,10 @@ from coach.exceptions import (
     PDFExtractionException,
     DocumentStructuringException,
 )
+
+if TYPE_CHECKING:
+    from coach.tenant import TenantManager
+    from coach.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +262,192 @@ class DocumentProcessor:
             return self.create_structured_documents(raw_text, llm)
 
 
+class TenantAwareDocumentProcessor(DocumentProcessor):
+    """Tenant-aware document processor that extends DocumentProcessor with multi-tenant support."""
+    
+    def __init__(
+        self,
+        tenant_manager: "TenantManager",
+        config: Optional["Config"] = None,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 200,
+        separators: Optional[List[str]] = None,
+        **kwargs
+    ):
+        """
+        Initialize the tenant-aware document processor.
+        
+        Args:
+            tenant_manager: TenantManager instance for handling tenant-specific operations
+            config: Configuration object (optional, will use default if not provided)
+            chunk_size: Maximum size of each chunk
+            chunk_overlap: Overlap between chunks
+            separators: List of separators for text splitting
+            **kwargs: Additional arguments for text splitter
+        """
+        from coach.config import config as default_config
+        
+        super().__init__(chunk_size, chunk_overlap, separators, **kwargs)
+        self.tenant_manager = tenant_manager
+        self.config = config or default_config
+        
+        logger.info(f"Initialized TenantAwareDocumentProcessor for tenant: {tenant_manager.tenant_id}")
+    
+    def get_temp_directory(self) -> str:
+        """Get tenant-specific temporary directory."""
+        temp_dir = self.tenant_manager.get_tenant_path("temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        return temp_dir
+    
+    def extract_text_from_pdf_stream(self, file_stream: IO[bytes]) -> str:
+        """
+        Extract text from a PDF file stream using tenant-specific temporary storage.
+        
+        Args:
+            file_stream: A file-like object representing the PDF
+            
+        Returns:
+            The extracted text as a single string
+            
+        Raises:
+            PDFExtractionException: If text extraction fails
+        """
+        try:
+            # Use tenant-specific temp directory
+            temp_dir = self.get_temp_directory()
+            
+            # Create temporary file in tenant directory
+            with tempfile.NamedTemporaryFile(
+                delete=False, 
+                suffix='.pdf',
+                dir=temp_dir
+            ) as tmp_file:
+                tmp_file.write(file_stream.read())
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Extract text using file path
+                text = self.extract_text_from_pdf_file(tmp_file_path)
+                return text
+            finally:
+                # Clean up temporary file
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
+                    
+        except Exception as e:
+            logger.error(f"Error extracting text from PDF stream for tenant {self.tenant_manager.tenant_id}: {e}")
+            raise PDFExtractionException(f"Failed to extract text from PDF stream: {str(e)}") from e
+    
+    def save_documents(self, documents: List[Document]) -> None:
+        """
+        Save documents to tenant-specific JSONL file.
+        
+        Args:
+            documents: List of Document objects to save
+        """
+        docs_path = self.tenant_manager.get_documents_path()
+        
+        # Ensure tenant directory exists
+        os.makedirs(os.path.dirname(docs_path), exist_ok=True)
+        
+        # Convert documents to dictionaries
+        docs_data = []
+        for doc in documents:
+            doc_dict = {
+                "doc_id": doc.doc_id,
+                "text": doc.text,
+                "metadata": doc.metadata
+            }
+            docs_data.append(doc_dict)
+        
+        # Append to existing JSONL file
+        try:
+            with open(docs_path, 'a', encoding='utf-8') as f:
+                for doc_dict in docs_data:
+                    f.write(json.dumps(doc_dict, ensure_ascii=False) + '\n')
+            
+            logger.info(f"Saved {len(documents)} documents to {docs_path}")
+            
+        except Exception as e:
+            logger.error(f"Error saving documents for tenant {self.tenant_manager.tenant_id}: {e}")
+            raise
+    
+    def load_documents(self) -> List[Document]:
+        """
+        Load documents from tenant-specific JSONL file.
+        
+        Returns:
+            List of Document objects
+        """
+        docs_path = self.tenant_manager.get_documents_path()
+        
+        if not os.path.exists(docs_path):
+            logger.info(f"No documents file found for tenant {self.tenant_manager.tenant_id}")
+            return []
+        
+        documents = []
+        try:
+            with open(docs_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        doc_dict = json.loads(line)
+                        doc = Document(
+                            doc_id=doc_dict.get("doc_id", ""),
+                            text=doc_dict.get("text", ""),
+                            metadata=doc_dict.get("metadata", {})
+                        )
+                        documents.append(doc)
+                    except (json.JSONDecodeError, Exception) as e:
+                        logger.warning(f"Error loading document on line {line_num} for tenant {self.tenant_manager.tenant_id}: {e}")
+                        continue
+            
+            logger.info(f"Loaded {len(documents)} documents for tenant {self.tenant_manager.tenant_id}")
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error loading documents for tenant {self.tenant_manager.tenant_id}: {e}")
+            raise
+    
+    def process_and_save_pdf(
+        self,
+        file_path: Optional[str] = None,
+        file_stream: Optional[IO[bytes]] = None,
+        llm=None,
+        use_chunking: bool = False,
+        auto_save: bool = True
+    ) -> List[Document]:
+        """
+        Process a PDF file into structured documents and optionally save them.
+        
+        Args:
+            file_path: Path to PDF file (alternative to file_stream)
+            file_stream: PDF file stream (alternative to file_path)
+            llm: Language model for structuring
+            use_chunking: Whether to use text chunking before structuring
+            auto_save: Whether to automatically save documents to tenant storage
+            
+        Returns:
+            List of structured Document objects
+        """
+        # Process PDF to structured documents
+        documents = self.process_pdf_to_structured_documents(
+            file_path=file_path,
+            file_stream=file_stream,
+            llm=llm,
+            use_chunking=use_chunking
+        )
+        
+        # Save documents if auto_save is enabled
+        if auto_save and documents:
+            self.save_documents(documents)
+        
+        return documents
+
+
 # Backward compatibility functions
 def extract_text_from_pdf(file_stream: IO[bytes]) -> str:
     """
@@ -289,3 +482,20 @@ def create_structured_documents(raw_text: str, llm) -> List[Document]:
     """
     processor = DocumentProcessor()
     return processor.create_structured_documents(raw_text, llm)
+
+
+def get_document_processor(tenant_manager: Optional["TenantManager"] = None, **kwargs):
+    """
+    Factory function to get appropriate document processor.
+    
+    Args:
+        tenant_manager: Optional TenantManager for tenant-aware processing
+        **kwargs: Additional arguments passed to processor constructor
+        
+    Returns:
+        DocumentProcessor or TenantAwareDocumentProcessor instance
+    """
+    if tenant_manager is not None:
+        return TenantAwareDocumentProcessor(tenant_manager, **kwargs)
+    else:
+        return DocumentProcessor(**kwargs)

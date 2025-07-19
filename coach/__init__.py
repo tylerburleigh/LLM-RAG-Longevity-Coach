@@ -24,6 +24,21 @@ from .types import (
     MessageDict,
     InsightDict,
 )
+from .tenant import TenantManager, get_tenant_manager
+from .langchain_vector_store import TenantAwareLangChainVectorStore
+from .vector_store_factory import (
+    create_vector_store,
+    get_vector_store,
+    clear_vector_store_cache,
+    get_vector_store_cache_stats,
+    VectorStoreManager,
+)
+# Legacy imports for backward compatibility
+from .tenant_aware_vector_store import (
+    get_cached_vector_store,
+    get_cache_stats,
+    cleanup_expired_stores,
+)
 
 __all__ = [
     # Authentication
@@ -55,4 +70,17 @@ __all__ = [
     "SearchResult",
     "MessageDict",
     "InsightDict",
+    # Multi-tenant support
+    "TenantManager",
+    "get_tenant_manager",
+    "TenantAwareLangChainVectorStore",
+    "create_vector_store",
+    "get_vector_store",
+    "clear_vector_store_cache",
+    "get_vector_store_cache_stats",
+    "VectorStoreManager",
+    # Legacy exports for backward compatibility
+    "get_cached_vector_store",
+    "get_cache_stats",
+    "cleanup_expired_stores",
 ]

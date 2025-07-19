@@ -1,7 +1,7 @@
 # coach/langchain_vector_store.py
 import os
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -23,6 +23,9 @@ from coach.types import (
 )
 from coach.llm_providers import get_embeddings
 from coach.embeddings import EmbeddingManager
+
+if TYPE_CHECKING:
+    from coach.tenant import TenantManager
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +78,13 @@ class LangChainVectorStore:
         # Load existing store if available
         self._load_existing_store()
     
+    def _get_faiss_index_path(self) -> str:
+        """Get FAISS index path."""
+        return os.path.join(self.store_folder, "faiss_index")
+    
     def _load_existing_store(self):
         """Load existing vector store from disk."""
-        faiss_path = os.path.join(self.store_folder, "faiss_index")
+        faiss_path = self._get_faiss_index_path()
         
         try:
             if os.path.exists(faiss_path):
@@ -270,7 +277,7 @@ class LangChainVectorStore:
             return
         
         try:
-            faiss_path = os.path.join(self.store_folder, "faiss_index")
+            faiss_path = self._get_faiss_index_path()
             self.faiss_store.save_local(faiss_path)
             logger.info(f"Saved vector store with {len(self.documents)} documents")
             
@@ -288,3 +295,101 @@ class LangChainVectorStore:
         self.ensemble_retriever = None
         self.documents = []
         logger.info("Cleared vector store")
+
+
+class TenantAwareLangChainVectorStore(LangChainVectorStore):
+    """Tenant-aware vector store that isolates data by tenant."""
+    
+    def __init__(
+        self,
+        tenant_manager: "TenantManager",
+        embedding_provider: str = "openai",
+        embedding_model: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Initialize the tenant-aware vector store.
+        
+        Args:
+            tenant_manager: TenantManager instance for tenant isolation
+            embedding_provider: Provider for embeddings ('openai' or 'google')
+            embedding_model: Specific embedding model to use
+            **kwargs: Additional parameters for embeddings
+        """
+        self.tenant_manager = tenant_manager
+        
+        # Override the store folder to use tenant-specific path
+        tenant_store_folder = tenant_manager.get_vector_store_path()
+        
+        # Initialize parent class with tenant-specific folder
+        super().__init__(
+            store_folder=tenant_store_folder,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
+            **kwargs
+        )
+        
+        logger.info(f"Initialized tenant-aware vector store for tenant {tenant_manager.tenant_id}")
+    
+    def _get_faiss_index_path(self) -> str:
+        """Get tenant-specific FAISS index path."""
+        return os.path.join(self.store_folder, "faiss_index")
+    
+    def _get_documents_path(self) -> str:
+        """Get tenant-specific documents path."""
+        return self.tenant_manager.get_documents_path()
+    
+    def _load_existing_store(self):
+        """Load existing tenant-specific vector store from disk."""
+        faiss_path = self._get_faiss_index_path()
+        
+        try:
+            if os.path.exists(faiss_path):
+                self.faiss_store = FAISS.load_local(
+                    faiss_path, 
+                    self.embeddings,
+                    allow_dangerous_deserialization=True
+                )
+                # Get documents from FAISS store
+                self.documents = list(self.faiss_store.docstore._dict.values())
+                logger.info(
+                    f"Loaded existing FAISS store for tenant {self.tenant_manager.tenant_id} "
+                    f"with {len(self.documents)} documents"
+                )
+                
+                # Rebuild retrievers
+                self._build_retrievers()
+            else:
+                logger.info(
+                    f"No existing vector store found for tenant {self.tenant_manager.tenant_id}, "
+                    "will create new one"
+                )
+        except Exception as e:
+            logger.warning(
+                f"Failed to load existing store for tenant {self.tenant_manager.tenant_id}: {e}"
+            )
+            self.faiss_store = None
+            self.documents = []
+    
+    def save(self):
+        """Save the tenant-specific vector store to disk."""
+        if not self.faiss_store:
+            logger.warning(f"No FAISS store to save for tenant {self.tenant_manager.tenant_id}")
+            return
+        
+        try:
+            faiss_path = self._get_faiss_index_path()
+            self.faiss_store.save_local(faiss_path)
+            logger.info(
+                f"Saved vector store for tenant {self.tenant_manager.tenant_id} "
+                f"with {len(self.documents)} documents"
+            )
+            
+        except Exception as e:
+            raise VectorStoreSaveException(
+                f"Failed to save vector store for tenant {self.tenant_manager.tenant_id}: {str(e)}"
+            ) from e
+    
+    def get_tenant_id(self) -> str:
+        """Get the tenant ID for this vector store."""
+        return self.tenant_manager.tenant_id
