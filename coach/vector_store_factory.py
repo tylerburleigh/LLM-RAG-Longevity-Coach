@@ -129,7 +129,8 @@ def get_vector_store_for_tenant(tenant_manager: "TenantManager", use_cache: bool
             embedding_model=config.EMBEDDING_MODEL
         )
     else:
-        return create_vector_store(tenant_manager=tenant_manager)
+        # Type cast since we know when tenant_manager is provided, create_vector_store returns TenantAwareLangChainVectorStore
+        return create_vector_store(tenant_manager=tenant_manager)  # type: ignore
 
 
 def clear_vector_store_cache():

@@ -35,16 +35,17 @@ def initialize_coach():
 @st.cache_resource
 def initialize_tenant_coach(tenant_manager: "TenantManager"):
     """Initialize a tenant-specific vector store and coach."""
-    from coach.vector_store_factory import get_tenant_vector_store
+    from coach.vector_store_factory import get_vector_store_for_tenant
     
     # Get tenant-specific vector store
-    vector_store = get_tenant_vector_store(tenant_manager)
+    vector_store = get_vector_store_for_tenant(tenant_manager)
     
     # Load tenant-specific documents
     docs_path = tenant_manager.get_documents_path()
     if os.path.exists(docs_path):
         docs = load_tenant_docs_from_jsonl(tenant_manager)
-        update_vector_store_from_docs(vector_store, docs)
+        if docs:
+            vector_store.add_documents(docs)
         vector_store.save()
     else:
         logger.info(f"Tenant docs file {docs_path} not found. Skipping update.")

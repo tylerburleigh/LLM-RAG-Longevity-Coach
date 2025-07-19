@@ -2,33 +2,39 @@
 
 [work in progress]
 
-A secure RAG (Retrieval-Augmented Generation) application that delivers personalized health and longevity advice. Built with LangChain and Streamlit, it combines hybrid search capabilities with user-controlled data management and Google OAuth authentication.
+A secure multi-tenant RAG (Retrieval-Augmented Generation) application that delivers personalized health and longevity advice. Built with LangChain and Streamlit, it combines hybrid search capabilities with complete user data isolation and Google OAuth authentication.
 
 ## 🎯 Key Features
 
-### 🔐 **Secure Authentication System**
+### 🔐 **Secure Multi-Tenant Authentication**
 - **Google OAuth2 Integration:** Secure login with Google accounts
+- **Complete Data Isolation:** Each user gets their own private knowledge base and vector store
 - **Session Management:** Automatic session timeout and secure logout
 - **Protected Routes:** All pages require authentication for access
-- **User Context:** Maintains user identity throughout the application
+- **Tenant Management:** Automatic tenant setup and resource isolation
 
-### 🧠 **Advanced RAG System**
+### 🧠 **Advanced Multi-Tenant RAG System**
 - **Hybrid Search:** Combines BM25 (keyword) and FAISS (semantic) search for optimal relevance
+- **Per-User Vector Stores:** Each user has their own isolated FAISS index and document store
 - **LangChain Integration:** Built on LangChain for extensible retrieval and processing
 - **Multi-Strategy Retrieval:** Contextual compression and rank fusion for enhanced results
 - **Real-Time Processing:** Live feedback during search planning and document processing
+- **Tenant-Aware Caching:** Optional LRU caching for performance with complete isolation
 
-### 📊 **Flexible Knowledge Management**
-- **Interactive Data Editor:** Spreadsheet-like interface for direct knowledge base editing
-- **PDF Document Processing:** Automatic extraction and structuring of uploaded documents
+### 📊 **Personal Knowledge Management**
+- **Private Data Storage:** Each user's data completely isolated in their own directory
+- **Interactive Data Editor:** Spreadsheet-like interface for personal knowledge base editing
+- **Tenant-Aware PDF Processing:** Document uploads processed and stored per user
 - **Guided Conversational Entry:** AI-assisted data entry through natural language chat
-- **Automatic Re-indexing:** Seamless updates to search indices when data changes
+- **Automatic Re-indexing:** Seamless updates to user's private search indices when data changes
 
-### 🔧 **Modern Architecture**
+### 🔧 **Modern Multi-Tenant Architecture**
+- **Complete Tenant Isolation:** Zero data leakage between users with separate file systems
 - **Type-Safe Design:** Comprehensive Pydantic models and type hints throughout
 - **Modular Components:** Clear separation of concerns with extensible provider system
 - **Robust Error Handling:** Custom exception hierarchy with informative error messages
 - **Configurable Settings:** Environment-driven configuration with sensible defaults
+- **Backwards Compatibility:** Single-tenant mode still supported for development
 
 ## 🚀 Getting Started
 
@@ -85,7 +91,9 @@ A secure RAG (Retrieval-Augmented Generation) application that delivers personal
 ### First Time Setup
 1. Navigate to `http://localhost:8501`
 2. Click "Login with Google" to authenticate
-3. Once logged in, you'll have access to all features with your own private knowledge base
+3. Once logged in, the system automatically creates your private tenant environment
+4. You'll have access to all features with your own isolated knowledge base and vector store
+5. Your data is completely separate from other users
 
 ## 📋 How It Works
 
@@ -93,32 +101,33 @@ The application provides two main workflows after authentication:
 
 ### 🗣️ **Chat Interface (Main Page)**
 1. **Authentication Check:** Secure login required for access
-2. **Query Analysis:** AI analyzes your health/longevity question
-3. **Search Strategy:** System determines optimal search approach
-4. **Hybrid Retrieval:** Combines BM25 and FAISS search for maximum relevance
-5. **Response Generation:** LLM generates personalized advice using retrieved context
-6. **Real-Time Feedback:** Live updates showing search and processing steps
+2. **Tenant Isolation:** System loads your private knowledge base and vector store
+3. **Query Analysis:** AI analyzes your health/longevity question
+4. **Search Strategy:** System determines optimal search approach within your data
+5. **Hybrid Retrieval:** Combines BM25 and FAISS search across your private documents
+6. **Response Generation:** LLM generates personalized advice using your retrieved context
+7. **Real-Time Feedback:** Live updates showing search and processing steps
 
-### 📚 **Knowledge Base Management**
-Choose from multiple data input methods:
+### 📚 **Personal Knowledge Base Management**
+Choose from multiple data input methods for your private knowledge base:
 
 #### **Interactive Data Editor** (Knowledge Base page)
-- Spreadsheet-like interface for direct editing
-- Add, modify, or delete entries in real-time
+- Spreadsheet-like interface for editing your personal data
+- Add, modify, or delete entries in your private knowledge base
 - Automatic data validation and error handling
-- One-click re-indexing of the search system
+- One-click re-indexing of your personal search system
 
 #### **PDF Document Upload** (Upload Documents page)
-- Drag-and-drop PDF processing
+- Drag-and-drop PDF processing to your private storage
 - LLM-powered text extraction and structuring
-- Automatic conversion to structured knowledge entries
-- Progress tracking and error handling
+- Automatic conversion to structured knowledge entries in your database
+- Progress tracking and error handling with tenant isolation
 
 #### **Guided Conversational Entry** (Guided Entry page)
 - Natural language data entry through chat interface
-- AI assistant helps structure your information
-- Review and approve entries before saving
-- Perfect for adding personal health insights
+- AI assistant helps structure your personal information
+- Review and approve entries before saving to your private database
+- Perfect for adding personal health insights and experiences
 
 ## 🔧 Configuration Options
 
@@ -132,9 +141,10 @@ DEFAULT_TEMPERATURE=1.0                 # Response creativity (0.0-2.0)
 GOOGLE_API_KEY=your_key                 # Optional: for Gemini models
 
 # Search Configuration
-DEFAULT_TOP_K=5                         # Number of documents to retrieve
-VECTOR_STORE_FOLDER=vector_store_data   # Local storage location
+DEFAULT_TOP_K=5                         # Number of documents to retrieve per user
+VECTOR_STORE_FOLDER=vector_store_data   # Legacy single-tenant storage (unused in multi-tenant)
 EMBEDDING_MODEL=text-embedding-3-large  # OpenAI embedding model
+VECTOR_STORE_CACHE_SIZE=5               # Multi-tenant vector store cache size
 
 # Authentication
 SESSION_TIMEOUT_HOURS=24                # Session timeout duration
@@ -149,7 +159,8 @@ SEARCH_MULTIPLIER=2                    # Search result multiplier
 MAX_DOCUMENT_LENGTH=10000              # Document chunk size limit
 
 # Data Management
-DOCS_FILE=docs.jsonl                   # Knowledge base file name
+DOCS_FILE=docs.jsonl                   # Knowledge base file name (per tenant)
+USER_DATA_ROOT=user_data               # Root directory for tenant data isolation
 MAX_INSIGHTS=5                         # Maximum insights per query
 MAX_CLARIFYING_QUESTIONS=3             # Maximum clarifying questions
 ```
@@ -157,24 +168,54 @@ MAX_CLARIFYING_QUESTIONS=3             # Maximum clarifying questions
 ## 🛡️ Security & Privacy
 
 - **OAuth2 Security:** Industry-standard authentication with Google
+- **Complete Data Isolation:** Each user's data stored in separate directories with no cross-access
 - **Session Management:** Automatic timeout and secure logout
-- **Local Data Storage:** All user data stored locally (no cloud dependency)
+- **Local Data Storage:** All user data stored locally with tenant isolation (no cloud dependency)
 - **API Key Protection:** Secure handling of OpenAI API keys
 - **Input Validation:** Comprehensive validation of all user inputs
 - **Protected Access:** All application features require authentication
+- **Zero Data Leakage:** Architectural guarantees prevent cross-tenant data access
 
-> **Note:** This application currently uses a shared knowledge base for all authenticated users. Multi-tenant data isolation is planned for a future release.
+> **Multi-Tenant Architecture:** Each authenticated user gets completely isolated data storage including separate knowledge bases, vector stores, and configuration files. No user can access another user's data.
 
 ## 🏗️ Architecture
 
-Built with modern Python technologies:
+Built with modern Python technologies and multi-tenant architecture:
 
-- **Frontend:** Streamlit for interactive web interface
-- **Backend:** LangChain for RAG pipeline and document processing
-- **Search:** FAISS for vector similarity + BM25 for keyword matching
-- **Authentication:** Google OAuth2 with secure session management
-- **Data Models:** Pydantic for type-safe data validation
-- **Storage:** Local JSONL files with automatic indexing
+- **Frontend:** Streamlit for interactive web interface with authentication
+- **Backend:** LangChain for RAG pipeline and tenant-aware document processing
+- **Search:** Per-user FAISS indexes for vector similarity + BM25 for keyword matching
+- **Authentication:** Google OAuth2 with secure session management and tenant isolation
+- **Data Models:** Pydantic for type-safe data validation across all components
+- **Storage:** Tenant-isolated JSONL files with automatic per-user indexing
+- **Multi-Tenancy:** Complete data isolation with `user_data/{user_id}/` directory structure
+
+### 📁 Multi-Tenant Directory Structure
+
+The application automatically creates isolated environments for each user:
+
+```
+user_data/
+├── alice@example.com/          # User-specific directory
+│   ├── docs.jsonl             # Personal knowledge base
+│   ├── vector_store/          # Private FAISS index
+│   │   └── faiss_index/
+│   │       ├── index.faiss
+│   │       └── index.pkl
+│   └── config/                # User settings
+│       └── user_config.json
+├── bob@example.com/           # Another user's isolated data
+│   ├── docs.jsonl
+│   ├── vector_store/
+│   └── config/
+└── ...
+```
+
+**Key Benefits:**
+- ✅ **Complete Isolation:** No data sharing between users
+- ✅ **Automatic Creation:** Directories created on first login
+- ✅ **Secure Access:** Each user can only access their own data
+- ✅ **Independent Scaling:** Each user's data grows independently
 
 ## 🚨 Troubleshooting
 
@@ -196,9 +237,10 @@ Built with modern Python technologies:
 - Consider using a more powerful OpenAI model
 
 **Data Management:**
-- Ensure `DOCS_FILE` location is writable
-- Check file permissions for `VECTOR_STORE_FOLDER`
+- Ensure `USER_DATA_ROOT` directory is writable for tenant creation
+- Check file permissions for individual user directories
 - Verify PDF files are not corrupted during upload
+- Each user's data is stored in `user_data/{user_id}/` with automatic directory creation
 
 ### Getting Help
 
@@ -228,6 +270,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Google Cloud](https://cloud.google.com/) for OAuth2 authentication
 - [FAISS](https://github.com/facebookresearch/faiss) for vector similarity search
 
+## 🚀 Future Roadmap
+
+### Phase 3: Cloud Storage & Encryption (Planned)
+- **Cloud Storage Integration:** GCP storage backend with automatic sync
+- **Client-Side Encryption:** User-controlled encryption keys for enhanced privacy
+- **Backup & Restore:** Automated backup of user data to cloud storage
+- **Cross-Device Access:** Access your data from multiple devices securely
+
+### Phase 4: Advanced Features (Planned)
+- **Real-Time Collaboration:** Share specific knowledge entries with healthcare providers
+- **Data Import/Export:** Import from health apps and export to various formats
+- **Advanced Analytics:** Personal health insights and trend analysis
+- **API Access:** Programmatic access to your personal health knowledge base
+
 ---
 
-**Ready to get started with your personalized longevity coach?** Follow the installation steps above and begin building your own health knowledge base today!
+**Ready to get started with your own private longevity coach?** Follow the installation steps above and begin building your secure, personal health knowledge base today!

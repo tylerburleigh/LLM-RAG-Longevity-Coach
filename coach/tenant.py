@@ -4,7 +4,6 @@
 import os
 import logging
 from typing import Optional
-from functools import lru_cache
 
 # Import UserContext from models to avoid duplication
 from coach.models import UserContext
@@ -75,51 +74,14 @@ class TenantManager:
         return f"TenantManager(tenant_id={self.tenant_id})"
 
 
-# Global cache for tenant managers to enable resource pooling
-_tenant_manager_cache = {}
-
-
-@lru_cache(maxsize=128)
-def get_tenant_manager(user_id: str, email: str, name: str, oauth_token: str = "", refresh_token: str = "") -> TenantManager:
+def get_tenant_manager(user_context: UserContext) -> TenantManager:
     """
-    Get or create a cached tenant manager.
+    Get a tenant manager for the given user context.
     
     Args:
-        user_id: Unique user identifier
-        email: User email
-        name: User name
-        oauth_token: OAuth access token (optional)
-        refresh_token: OAuth refresh token (optional)
+        user_context: User context with authentication details
         
     Returns:
-        Cached TenantManager instance
+        TenantManager instance
     """
-    cache_key = user_id
-    
-    if cache_key not in _tenant_manager_cache:
-        user_context = UserContext(
-            user_id=user_id,
-            email=email,
-            name=name,
-            oauth_token=oauth_token,
-            refresh_token=refresh_token
-        )
-        _tenant_manager_cache[cache_key] = TenantManager(user_context)
-        logger.info(f"Created new TenantManager for user {user_id}")
-    
-    return _tenant_manager_cache[cache_key]
-
-
-def clear_tenant_cache(user_id: Optional[str] = None):
-    """
-    Clear tenant manager cache.
-    
-    Args:
-        user_id: Specific user to clear, or None to clear all
-    """
-    if user_id:
-        _tenant_manager_cache.pop(user_id, None)
-        logger.info(f"Cleared cache for user {user_id}")
-    else:
-        _tenant_manager_cache.clear()
-        logger.info("Cleared all tenant caches")
+    return TenantManager(user_context)
