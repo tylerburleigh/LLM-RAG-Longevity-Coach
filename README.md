@@ -196,7 +196,7 @@ The application automatically creates isolated environments for each user:
 
 ```
 user_data/
-├── alice@example.com/          # User-specific directory
+├── alice@example.com/         # User-specific directory
 │   ├── docs.jsonl             # Personal knowledge base
 │   ├── vector_store/          # Private FAISS index
 │   │   └── faiss_index/
