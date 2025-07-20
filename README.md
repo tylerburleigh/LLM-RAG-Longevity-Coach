@@ -138,7 +138,7 @@ The application supports extensive configuration through environment variables:
 # LLM Configuration
 DEFAULT_LLM_MODEL=o3                    # OpenAI model to use
 DEFAULT_TEMPERATURE=1.0                 # Response creativity (0.0-2.0)
-GOOGLE_API_KEY=your_key                 # Optional: for Gemini models
+GEMINI_API_KEY=your_key                 # Optional: for Gemini models
 
 # Search Configuration
 DEFAULT_TOP_K=5                         # Number of documents to retrieve per user

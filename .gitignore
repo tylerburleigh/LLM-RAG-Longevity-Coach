@@ -76,3 +76,5 @@ fitbit_data/
 
 # User-supplied data file which contains sensitive information
 docs.jsonl
+.env
+.mcp.json

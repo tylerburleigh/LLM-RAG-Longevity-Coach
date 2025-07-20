@@ -5,10 +5,13 @@ from functools import lru_cache
 
 from coach.config import config
 from coach.langchain_vector_store import LangChainVectorStore, TenantAwareLangChainVectorStore
+from coach.encrypted_vector_store import EncryptedTenantAwareLangChainVectorStore
 from coach.exceptions import VectorStoreException
 
 if TYPE_CHECKING:
     from coach.tenant import TenantManager
+    from coach.encryption import EncryptionManager
+    from coach.storage.base import StorageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -148,3 +151,42 @@ def get_cache_info() -> Dict[str, Any]:
         "maxsize": cache_info.maxsize,
         "currsize": cache_info.currsize
     }
+
+
+def create_encrypted_vector_store(
+    tenant_manager: "TenantManager",
+    encryption_manager: "EncryptionManager",
+    storage_provider: Optional["StorageProvider"] = None,
+    embedding_provider: str = "openai",
+    embedding_model: Optional[str] = None,
+    **kwargs
+) -> EncryptedTenantAwareLangChainVectorStore:
+    """
+    Create an encrypted tenant-aware vector store.
+    
+    Args:
+        tenant_manager: TenantManager instance for tenant isolation
+        encryption_manager: EncryptionManager for data encryption
+        storage_provider: Optional storage provider for cloud storage
+        embedding_provider: Provider for embeddings ('openai' or 'google')
+        embedding_model: Specific embedding model to use
+        **kwargs: Additional parameters for embeddings
+        
+    Returns:
+        EncryptedTenantAwareLangChainVectorStore: Encrypted vector store instance
+        
+    Raises:
+        VectorStoreException: If vector store creation fails
+    """
+    try:
+        logger.info(f"Creating encrypted vector store for tenant {tenant_manager.tenant_id}")
+        return EncryptedTenantAwareLangChainVectorStore(
+            tenant_manager=tenant_manager,
+            encryption_manager=encryption_manager,
+            storage_provider=storage_provider,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
+            **kwargs
+        )
+    except Exception as e:
+        raise VectorStoreException(f"Failed to create encrypted vector store: {str(e)}") from e

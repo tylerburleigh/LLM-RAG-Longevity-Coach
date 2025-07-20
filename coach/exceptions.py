@@ -110,6 +110,18 @@ class ChainExecutionException(CoachException):
     pass
 
 
+# Encryption Exceptions
+class EncryptionException(CoachException):
+    """Base exception for encryption operations."""
+    pass
+
+
+# Storage Exceptions
+class StorageException(CoachException):
+    """Base exception for storage operations."""
+    pass
+
+
 # Configuration Exceptions
 class ConfigurationException(CoachException):
     """Base exception for configuration errors."""

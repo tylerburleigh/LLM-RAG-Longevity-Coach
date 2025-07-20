@@ -23,7 +23,7 @@ cp .env.example .env
 Then edit `.env` with your actual values:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here  # Optional, for Gemini models
+GEMINI_API_KEY=your_GEMINI_API_KEY_here  # Optional, for Gemini models
 
 # OAuth2 Configuration (required for multi-tenant mode)
 GOOGLE_CLIENT_ID=your_google_client_id_here
@@ -98,7 +98,7 @@ The application uses environment variables for configuration. All settings have 
 ### Required Environment Variables
 ```bash
 OPENAI_API_KEY=your_openai_api_key_here  # Required for OpenAI models
-GOOGLE_API_KEY=your_google_api_key_here  # Optional, for Gemini models
+GEMINI_API_KEY=your_GEMINI_API_KEY_here  # Optional, for Gemini models
 
 # OAuth2 Configuration (required for multi-tenant authentication)
 GOOGLE_CLIENT_ID=your_google_client_id_here

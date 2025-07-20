@@ -85,7 +85,7 @@ class GoogleProvider(LLMProvider):
     def create_llm(self, model_name: str, **kwargs) -> BaseChatModel:
         if not self.validate_api_key():
             raise APIKeyMissingException(
-                "Google API key not found. Please set the GOOGLE_API_KEY environment variable."
+                "Google API key not found. Please set the GEMINI_API_KEY environment variable."
             )
         
         temperature = kwargs.get("temperature", config.DEFAULT_TEMPERATURE)

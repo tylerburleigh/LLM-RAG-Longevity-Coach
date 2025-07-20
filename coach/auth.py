@@ -20,6 +20,7 @@ from google_auth_oauthlib.flow import Flow
 from coach.config import config
 from coach.models import UserContext
 from coach.exceptions import CoachException
+from coach.audit import audit
 
 logger = logging.getLogger(__name__)
 
@@ -285,8 +286,21 @@ class AuthenticationManager:
     def logout(self) -> None:
         """Log out the current user and clear session."""
         try:
+            # Get user context before clearing
+            user_context = self.get_user_context()
+            user_id = user_context.user_id if user_context else "unknown"
+            
             self._clear_session()
             logger.info("User logged out successfully")
+            
+            # Audit log logout
+            audit.log_authentication(
+                user_id=user_id,
+                action="logout",
+                success=True,
+                method="manual"
+            )
+            
             st.success("You have been logged out successfully")
             st.rerun()
         except Exception as e:
@@ -400,6 +414,16 @@ class AuthenticationManager:
             st.session_state['session_created'] = datetime.now()
             
             logger.info(f"User {user_context.email} authenticated successfully")
+            
+            # Audit log successful authentication
+            audit.log_authentication(
+                user_id=user_context.user_id,
+                action="login",
+                success=True,
+                method="oauth2_google",
+                ip_address=None  # Could be extracted from request headers if available
+            )
+            
             return user_context
             
         except Exception as e:

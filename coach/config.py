@@ -54,9 +54,23 @@ class Config:
     # Development Configuration
     OAUTH_INSECURE_TRANSPORT: bool = os.getenv("OAUTH_INSECURE_TRANSPORT", "true").lower() == "true"
     
+    # Multi-Tenant Configuration
+    USER_DATA_ROOT: str = os.getenv("USER_DATA_ROOT", "user_data")
+    VECTOR_STORE_CACHE_SIZE: int = int(os.getenv("VECTOR_STORE_CACHE_SIZE", "5"))
+    
+    # Cloud Storage Configuration
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")  # 'local' or 'gcp'
+    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
+    GCP_BUCKET_NAME: str = os.getenv("GCP_BUCKET_NAME", "longevity-coach-data")
+    GCP_CREDENTIALS_PATH: Optional[str] = os.getenv("GCP_CREDENTIALS_PATH", None)
+    
+    # Encryption Configuration
+    ENABLE_ENCRYPTION: bool = os.getenv("ENABLE_ENCRYPTION", "true").lower() == "true"
+    ENCRYPTION_ALGORITHM: str = os.getenv("ENCRYPTION_ALGORITHM", "AES-GCM")
+    
     # API Keys (handled separately, just documenting expected env vars)
     # OPENAI_API_KEY: Set via environment variable
-    # GOOGLE_API_KEY: Set via environment variable (if using Gemini)
+    # GEMINI_API_KEY: Set via environment variable (if using Gemini)
     
     # Insight Generation
     MAX_INSIGHTS: int = int(os.getenv("MAX_INSIGHTS", "5"))
@@ -77,7 +91,7 @@ class Config:
         """
         key_mapping = {
             "openai": "OPENAI_API_KEY",
-            "google": "GOOGLE_API_KEY",
+            "google": "GEMINI_API_KEY",
         }
         env_var = key_mapping.get(provider.lower())
         return os.getenv(env_var) if env_var else None
