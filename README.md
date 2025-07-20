@@ -2,7 +2,7 @@
 
 [work in progress]
 
-A secure multi-tenant RAG (Retrieval-Augmented Generation) application that delivers personalized health and longevity advice. Built with LangChain and Streamlit, it combines hybrid search capabilities with complete user data isolation and Google OAuth authentication.
+A secure multi-tenant RAG (Retrieval-Augmented Generation) application that delivers personalized health and longevity advice. Built with LangChain and Streamlit, it combines hybrid search capabilities with complete user data isolation, Google OAuth authentication, and optional cloud storage with client-side encryption.
 
 ## 🎯 Key Features
 
@@ -35,6 +35,15 @@ A secure multi-tenant RAG (Retrieval-Augmented Generation) application that deli
 - **Robust Error Handling:** Custom exception hierarchy with informative error messages
 - **Configurable Settings:** Environment-driven configuration with sensible defaults
 - **Backwards Compatibility:** Single-tenant mode still supported for development
+
+### ☁️ **Cloud Storage & Encryption**
+- **Google Cloud Storage Integration:** Optional GCP backend for scalable data storage
+- **Client-Side Encryption:** AES-GCM encryption with user-controlled keys
+- **Secure Key Derivation:** PBKDF2-based key derivation with automatic expiration
+- **Connection Pooling:** Thread-safe GCP client pooling for performance
+- **Intelligent Retry Logic:** Exponential backoff for transient failures
+- **Rate Limiting:** Token bucket algorithm prevents encryption abuse
+- **Comprehensive Audit Logging:** Track all security-sensitive operations
 
 ## 🚀 Getting Started
 
@@ -73,6 +82,16 @@ A secure multi-tenant RAG (Retrieval-Augmented Generation) application that deli
    
    # Optional: Development settings
    OAUTH_INSECURE_TRANSPORT=true  # For local development
+   
+   # Optional: Cloud Storage (Phase 3)
+   STORAGE_BACKEND=local  # Options: local, gcp
+   GCP_PROJECT_ID=your_project_id
+   GCP_BUCKET_NAME=longevity-coach-data
+   GCP_CREDENTIALS_PATH=/path/to/service-account.json
+   
+   # Optional: Encryption (Phase 3)
+   ENABLE_ENCRYPTION=false  # Enable client-side encryption
+   KEY_DERIVATION_TTL=900  # Key cache TTL in seconds
    ```
 
 4. **Set up Google OAuth2:**
@@ -83,7 +102,14 @@ A secure multi-tenant RAG (Retrieval-Augmented Generation) application that deli
    - Add `http://localhost:8501/` to authorized redirect URIs
    - Copy the client ID and secret to your `.env` file
 
-5. **Run the application:**
+5. **(Optional) Set up Google Cloud Storage:**
+   - Create a GCP project and enable the Cloud Storage API
+   - Create a service account with Storage Admin permissions
+   - Download the service account JSON key file
+   - Create a GCS bucket for your data
+   - Update `.env` with GCP configuration
+
+6. **Run the application:**
    ```bash
    streamlit run app.py
    ```
@@ -163,6 +189,11 @@ DOCS_FILE=docs.jsonl                   # Knowledge base file name (per tenant)
 USER_DATA_ROOT=user_data               # Root directory for tenant data isolation
 MAX_INSIGHTS=5                         # Maximum insights per query
 MAX_CLARIFYING_QUESTIONS=3             # Maximum clarifying questions
+
+# Security & Rate Limiting
+RATE_LIMIT_OPERATIONS_PER_HOUR=100     # Max encryption operations per hour
+RATE_LIMIT_BURST_SIZE=10               # Burst capacity for rate limiting
+AUDIT_LOG_FILE=audit.log               # Security audit log location
 ```
 
 ## 🛡️ Security & Privacy
@@ -170,11 +201,14 @@ MAX_CLARIFYING_QUESTIONS=3             # Maximum clarifying questions
 - **OAuth2 Security:** Industry-standard authentication with Google
 - **Complete Data Isolation:** Each user's data stored in separate directories with no cross-access
 - **Session Management:** Automatic timeout and secure logout
-- **Local Data Storage:** All user data stored locally with tenant isolation (no cloud dependency)
+- **Client-Side Encryption:** Optional AES-GCM encryption with user-controlled keys
+- **Secure Key Management:** PBKDF2 key derivation, no password storage, automatic expiration
 - **API Key Protection:** Secure handling of OpenAI API keys
 - **Input Validation:** Comprehensive validation of all user inputs
 - **Protected Access:** All application features require authentication
 - **Zero Data Leakage:** Architectural guarantees prevent cross-tenant data access
+- **Audit Logging:** Comprehensive tracking of all security-sensitive operations
+- **Rate Limiting:** Protection against encryption operation abuse
 
 > **Multi-Tenant Architecture:** Each authenticated user gets completely isolated data storage including separate knowledge bases, vector stores, and configuration files. No user can access another user's data.
 
@@ -187,7 +221,9 @@ Built with modern Python technologies and multi-tenant architecture:
 - **Search:** Per-user FAISS indexes for vector similarity + BM25 for keyword matching
 - **Authentication:** Google OAuth2 with secure session management and tenant isolation
 - **Data Models:** Pydantic for type-safe data validation across all components
-- **Storage:** Tenant-isolated JSONL files with automatic per-user indexing
+- **Storage:** Tenant-isolated JSONL files with optional GCP cloud storage backend
+- **Encryption:** Client-side AES-GCM encryption with PBKDF2 key derivation
+- **Security:** Comprehensive audit logging and rate limiting for sensitive operations
 - **Multi-Tenancy:** Complete data isolation with `user_data/{user_id}/` directory structure
 
 ### 📁 Multi-Tenant Directory Structure
@@ -272,11 +308,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🚀 Future Roadmap
 
-### Phase 3: Cloud Storage & Encryption (Planned)
-- **Cloud Storage Integration:** GCP storage backend with automatic sync
-- **Client-Side Encryption:** User-controlled encryption keys for enhanced privacy
-- **Backup & Restore:** Automated backup of user data to cloud storage
-- **Cross-Device Access:** Access your data from multiple devices securely
+### Phase 3: Cloud Storage & Encryption ✅ (Implemented)
+- **Cloud Storage Integration:** GCP storage backend with connection pooling
+- **Client-Side Encryption:** AES-GCM encryption with user-controlled keys
+- **Secure Key Management:** PBKDF2 key derivation with automatic expiration
+- **Audit Logging:** Comprehensive security event tracking
+- **Rate Limiting:** Token bucket algorithm for encryption operations
+- **Intelligent Retry:** Exponential backoff for cloud operations
 
 ### Phase 4: Advanced Features (Planned)
 - **Real-Time Collaboration:** Share specific knowledge entries with healthcare providers

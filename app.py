@@ -1,7 +1,6 @@
 import streamlit as st
 from coach.longevity_coach import LongevityCoach
-from coach.utils import load_docs_from_jsonl, update_vector_store_from_docs, initialize_coach
-from coach.vector_store_factory import get_vector_store
+from coach.tenant import TenantManager
 from coach.auth import AuthenticationManager, AuthenticationException, require_authentication
 from coach.models import UserContext
 from coach.navigation import display_user_context_sidebar, display_page_header, display_page_footer
@@ -12,7 +11,6 @@ import logging
 # --- Setup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-DOCS_FILE = "docs.jsonl"
 
 # --- Page and Session State ---
 def setup_page():
@@ -24,17 +22,24 @@ def initialize_session_state():
     Note: This preserves authentication-related session state while clearing
     conversation state.
     """
-    # Preserve authentication state
+    # Preserve authentication state and coach instances
     auth_keys = ['user_context', 'session_created']
     preserved_state = {}
+    
+    # Preserve authentication
     for key in auth_keys:
         if key in st.session_state:
             preserved_state[key] = st.session_state[key]
     
+    # Preserve coach instances (they start with 'coach_')
+    coach_keys = [key for key in st.session_state.keys() if key.startswith('coach_')]
+    for key in coach_keys:
+        preserved_state[key] = st.session_state[key]
+    
     # Clear all session state
     st.session_state.clear()
     
-    # Restore authentication state
+    # Restore preserved state
     for key, value in preserved_state.items():
         st.session_state[key] = value
     
@@ -45,17 +50,52 @@ def initialize_session_state():
     st.session_state.clarifying_questions = []
     st.session_state.feedback = {}
 
+def cleanup_user_coaches(user_id: str):
+    """Clean up all coach instances for a specific user."""
+    coach_keys = [key for key in st.session_state.keys() 
+                  if key.startswith(f'coach_{user_id}_')]
+    for key in coach_keys:
+        del st.session_state[key]
+        logger.info(f"Cleaned up coach instance: {key}")
+
 # --- Coach Initialization ---
-@st.cache_resource
-def initialize_coach(model_name: str = "o3"):
-    vector_store = get_vector_store()
-    if os.path.exists(DOCS_FILE):
-        docs = load_docs_from_jsonl(DOCS_FILE)
-        update_vector_store_from_docs(vector_store, docs)
+def get_tenant_coach(user_context: UserContext, model_name: str = "o3") -> LongevityCoach:
+    """Get or create a tenant-specific coach instance for the user."""
+    # Create a unique key for this user's coach instance
+    coach_key = f"coach_{user_context.user_id}_{model_name}"
+    
+    # Check if coach already exists in session state
+    if coach_key in st.session_state:
+        return st.session_state[coach_key]
+    
+    # Create tenant manager
+    tenant_manager = TenantManager(user_context)
+    
+    # Import here to avoid circular imports
+    from coach.vector_store_factory import get_vector_store_for_tenant
+    
+    # Get tenant-specific vector store
+    vector_store = get_vector_store_for_tenant(tenant_manager)
+    
+    # Load tenant-specific documents
+    docs_path = tenant_manager.get_documents_path()
+    if os.path.exists(docs_path):
+        from coach.utils import load_tenant_docs_from_jsonl
+        docs = load_tenant_docs_from_jsonl(tenant_manager)
+        if docs:
+            vector_store.add_documents(docs)
         vector_store.save()
     else:
-        logger.info(f"Docs file {DOCS_FILE} not found. Skipping update.")
-    return LongevityCoach(vector_store, model_name=model_name)
+        logger.info(f"Tenant docs file {docs_path} not found. Skipping update.")
+    
+    # Create coach with tenant-specific vector store and model
+    coach = LongevityCoach(vector_store, model_name=model_name)
+    
+    # Store in session state for reuse
+    st.session_state[coach_key] = coach
+    
+    logger.info(f"Initialized coach for tenant {user_context.user_id} with model {model_name}")
+    return coach
 
 # --- Authentication UI Components ---
 def show_login_page():
@@ -171,6 +211,9 @@ def display_user_info(user_context: UserContext):
         logout_text = "🚪 Exit Dev Mode" if user_context.name == "Developer" else "🚪 Logout"
         if st.button(logout_text, type="secondary"):
             try:
+                # Clean up user's coach instances before logout
+                cleanup_user_coaches(user_context.user_id)
+                
                 auth_manager = AuthenticationManager()
                 auth_manager.logout()
             except AuthenticationException as e:
@@ -370,12 +413,14 @@ def main():
     
     # Initialize coach and session state
     try:
-        coach = initialize_coach(model_name)
+        # Get tenant-specific coach instance
+        coach = get_tenant_coach(user_context, model_name)
+        
         if 'app_state' not in st.session_state:
             initialize_session_state()
 
         # Show user data info
-        #st.info(f"💾 Your data is stored securely and privately (User: {user_context.email})")
+        st.info(f"💾 Your data is stored securely and privately in your personal workspace")
         
         # Display UI with user context
         display_sidebar(user_context)

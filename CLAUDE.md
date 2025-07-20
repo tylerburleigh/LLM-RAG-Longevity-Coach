@@ -30,6 +30,17 @@ GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 OAUTH_REDIRECT_URI=http://localhost:8501/
 
+# Cloud Storage Configuration (optional - Phase 3)
+STORAGE_BACKEND=local  # Options: local, gcp
+GCP_PROJECT_ID=your_project_id
+GCP_BUCKET_NAME=longevity-coach-data
+GCP_CREDENTIALS_PATH=/path/to/service-account.json
+
+# Encryption Configuration (optional - Phase 3)
+ENABLE_ENCRYPTION=false  # Enable client-side encryption
+ENCRYPTION_ALGORITHM=AES-GCM
+KEY_DERIVATION_TTL=900  # Key cache TTL in seconds (15 minutes)
+
 # Development Configuration (optional)
 OAUTH_INSECURE_TRANSPORT=true  # Allows HTTP for local development
 ```
@@ -38,12 +49,30 @@ OAUTH_INSECURE_TRANSPORT=true  # Allows HTTP for local development
 
 Optional configuration environment variables:
 ```
+# Vector Store Configuration
 VECTOR_STORE_FOLDER=vector_store_data
+VECTOR_STORE_CACHE_SIZE=5                    # Tenant vector store cache size
+
+# LLM & Embedding Configuration
 EMBEDDING_MODEL=text-embedding-3-large
 DEFAULT_LLM_MODEL=o3
 DEFAULT_TOP_K=5
-DOCS_FILE=docs.jsonl
 USE_LANGCHAIN_CHAINS=false  # Enable advanced workflow chains
+
+# Document Configuration
+DOCS_FILE=docs.jsonl
+MAX_DOCUMENT_LENGTH=10000
+
+# Multi-Tenant Configuration
+USER_DATA_ROOT=user_data
+
+# Rate Limiting
+RATE_LIMIT_OPERATIONS_PER_HOUR=100
+RATE_LIMIT_BURST_SIZE=10
+
+# Logging
+LOG_LEVEL=INFO
+AUDIT_LOG_FILE=audit.log
 ```
 
 ## High-Level Architecture
@@ -370,6 +399,32 @@ The application maintains backwards compatibility:
     - LRU caching for performance optimization
     - Backwards compatibility with single-tenant mode
 
+16. **Cloud Storage System** (`coach/storage/`):
+    - **Storage Abstraction** (`base.py`): Abstract base for storage providers
+    - **GCP Storage** (`gcp.py`): Google Cloud Storage integration with connection pooling
+    - **Local Storage** (`local.py`): Local file system storage provider
+    - **Encrypted Storage** (`coach/encrypted_vector_store.py`): Encrypted vector store with cloud sync
+
+17. **Security & Encryption** (`coach/encryption.py`, `coach/key_derivation.py`):
+    - **Encryption Manager**: Client-side AES-GCM encryption with secure salt generation
+    - **Key Derivation Service**: PBKDF2-based key derivation with TTL caching
+    - **Secure Key Management**: Never stores passwords, automatic key expiration
+    - **Rate Limiting** (`coach/rate_limiter.py`): Token bucket algorithm for encryption operations
+
+18. **Audit & Monitoring** (`coach/audit.py`):
+    - Structured audit logging for all security-sensitive operations
+    - Authentication events tracking (login/logout)
+    - Encryption/decryption operation logging
+    - Storage access monitoring
+    - Rate limiting event tracking
+    - JSON-formatted logs with search capabilities
+
+19. **Resilience & Reliability** (`coach/retry_utils.py`):
+    - Intelligent retry logic with exponential backoff
+    - Error-specific retry strategies
+    - Transient failure handling for cloud operations
+    - Tenacity-based implementation
+
 ### Key Workflows
 
 1. **Authentication & Chat Interface** (`app.py`):
@@ -412,5 +467,5 @@ The application maintains backwards compatibility:
 - **Linting**: No linting configuration present
 - **User Data**: Stored in `user_data/{user_id}/` directories with complete tenant isolation
 - **Fitbit Integration**: Available but not documented in main workflow
-- **Cloud Migration**: Phase 3 will add cloud storage and encryption support
+- **Cloud Migration**: Phase 3 implemented - GCP storage integration with client-side encryption
 - **Multi-Tenant Security**: Comprehensive data isolation with no cross-tenant access possible
