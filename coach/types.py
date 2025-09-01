@@ -18,7 +18,7 @@ MetadataDict = Dict[str, Any]
 # Literal types for constrained values
 ImportanceLevel = Literal["Low", "Medium", "High"]
 ConfidenceLevel = Literal["Low", "Medium", "High"]
-ModelName = Literal["o3", "o4-mini", "gemini-2.5-pro"]
+ModelName = Literal["gpt-5", "o3", "o4-mini", "gemini-2.5-pro"]
 
 # TypedDicts for structured data
 class SearchResult(TypedDict):

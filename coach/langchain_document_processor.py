@@ -1,6 +1,6 @@
 # coach/langchain_document_processor.py
 import logging
-from typing import List, Optional, IO
+from typing import List, Optional, IO, Union
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LangChainDocument
@@ -77,12 +77,12 @@ class DocumentProcessor:
             logger.error(f"Error extracting text from PDF: {e}")
             raise PDFExtractionException(f"Failed to extract text from PDF: {str(e)}") from e
     
-    def extract_text_from_pdf_stream(self, file_stream: IO[bytes]) -> str:
+    def extract_text_from_pdf_stream(self, file_stream: Union[IO[bytes], bytes]) -> str:
         """
         Extract text from a PDF file stream.
         
         Args:
-            file_stream: A file-like object representing the PDF
+            file_stream: A file-like object or bytes representing the PDF
             
         Returns:
             The extracted text as a single string
@@ -96,7 +96,11 @@ class DocumentProcessor:
         try:
             # Create temporary file
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                tmp_file.write(file_stream.read())
+                # Handle both bytes and file-like objects
+                if isinstance(file_stream, bytes):
+                    tmp_file.write(file_stream)
+                else:
+                    tmp_file.write(file_stream.read())
                 tmp_file_path = tmp_file.name
             
             try:

@@ -52,7 +52,7 @@ class OpenAIProvider(LLMProvider):
     """Provider for OpenAI models."""
     
     def get_model_names(self) -> list[str]:
-        return ["o3", "o4-mini"]
+        return ["gpt-5", "o3", "o4-mini"]
     
     def validate_api_key(self) -> bool:
         api_key = config.get_api_key("openai")
@@ -65,11 +65,22 @@ class OpenAIProvider(LLMProvider):
             )
         
         temperature = kwargs.get("temperature", config.DEFAULT_TEMPERATURE)
-        return ChatOpenAI(
-            model_name=model_name,
-            temperature=temperature,
-            **kwargs
-        )
+        
+        # For reasoning models, add reasoning_effort parameter
+        if model_name in ["gpt-5", "o3", "o4-mini"]:
+            reasoning_effort = kwargs.get("reasoning_effort", config.DEFAULT_REASONING_EFFORT)
+            return ChatOpenAI(
+                model_name=model_name,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
+                **{k: v for k, v in kwargs.items() if k not in ["temperature", "reasoning_effort"]}
+            )
+        else:
+            return ChatOpenAI(
+                model_name=model_name,
+                temperature=temperature,
+                **kwargs
+            )
 
 
 class GoogleProvider(LLMProvider):

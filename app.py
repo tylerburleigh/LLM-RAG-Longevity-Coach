@@ -2,10 +2,6 @@ import streamlit as st
 from coach.longevity_coach import LongevityCoach
 from coach.utils import load_docs_from_jsonl, update_vector_store_from_docs, initialize_coach
 from coach.vector_store_factory import get_vector_store
-from coach.auth import AuthenticationManager, AuthenticationException, require_authentication
-from coach.models import UserContext
-from coach.navigation import display_user_context_sidebar, display_page_header, display_page_footer
-from coach.page_setup import setup_main_page
 import os
 import logging
 
@@ -16,29 +12,10 @@ DOCS_FILE = "docs.jsonl"
 
 # --- Page and Session State ---
 def setup_page():
-    setup_main_page()
+    st.set_page_config(page_title="Longevity Coach", layout="wide")
 
 def initialize_session_state():
-    """Initialize session state for the longevity coach application.
-    
-    Note: This preserves authentication-related session state while clearing
-    conversation state.
-    """
-    # Preserve authentication state
-    auth_keys = ['user_context', 'session_created']
-    preserved_state = {}
-    for key in auth_keys:
-        if key in st.session_state:
-            preserved_state[key] = st.session_state[key]
-    
-    # Clear all session state
     st.session_state.clear()
-    
-    # Restore authentication state
-    for key, value in preserved_state.items():
-        st.session_state[key] = value
-    
-    # Initialize conversation state
     st.session_state.app_state = "AWAITING_INITIAL_QUESTION"
     st.session_state.messages = []
     st.session_state.initial_query = ""
@@ -47,7 +24,7 @@ def initialize_session_state():
 
 # --- Coach Initialization ---
 @st.cache_resource
-def initialize_coach(model_name: str = "o3"):
+def initialize_coach(model_name: str = "o3", reasoning_effort: str = None):
     vector_store = get_vector_store()
     if os.path.exists(DOCS_FILE):
         docs = load_docs_from_jsonl(DOCS_FILE)
@@ -55,134 +32,15 @@ def initialize_coach(model_name: str = "o3"):
         vector_store.save()
     else:
         logger.info(f"Docs file {DOCS_FILE} not found. Skipping update.")
-    return LongevityCoach(vector_store, model_name=model_name)
-
-# --- Authentication UI Components ---
-def show_login_page():
-    """Display the login page when user is not authenticated."""
-    st.title("🧬 Longevity Coach")
-    st.markdown("---")
-    
-    # Welcome message
-    st.markdown("""
-    ## Welcome to Longevity Coach
-    
-    Your personalized AI-powered health and longevity advisor. Get insights and recommendations 
-    based on your health data and goals.
-    
-    ### Features:
-    - 🎯 **Personalized Insights**: Get tailored recommendations based on your health profile
-    - 📊 **Data-Driven Advice**: Leveraging scientific research and your personal data
-    - 🔒 **Secure & Private**: Your data is encrypted and protected
-    - 💬 **Interactive Chat**: Ask questions and get detailed explanations
-    
-    ### Get Started:
-    Please log in with your Google account to begin your personalized longevity journey.
-    """)
-    
-    # Login section
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("### 🔐 Login Required")
-        st.info("Please authenticate to access your personalized longevity coaching session.")
-        
-        # The authenticate_user method will handle the OAuth flow
-        # and display the login button when needed
-        try:
-            auth_manager = AuthenticationManager()
-            result = auth_manager.authenticate_user()
-            
-            # If authentication is not configured, show development mode
-            if result is None and not auth_manager.oauth_config:
-                st.warning("⚠️ Authentication is not configured.")
-                st.info("""
-                **Development Mode Detected**
-                
-                To enable authentication, please configure the following environment variables:
-                - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
-                - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
-                - `OAUTH_REDIRECT_URI`: OAuth redirect URI (default: http://localhost:8501/)
-                
-                For development purposes, you can continue without authentication, but user-specific features will be limited.
-                """)
-                
-                if st.button("Continue without Authentication", type="primary"):
-                    # Create a temporary user context for development
-                    from datetime import datetime
-                    temp_user = UserContext(
-                        user_id="dev_user",
-                        email="developer@localhost",
-                        name="Developer",
-                        oauth_token="dev_token",
-                        refresh_token="dev_refresh",
-                        encryption_key=None
-                    )
-                    
-                    # Store in session
-                    st.session_state['user_context'] = {
-                        'user_id': temp_user.user_id,
-                        'email': temp_user.email,
-                        'name': temp_user.name,
-                        'oauth_token': temp_user.oauth_token,
-                        'refresh_token': temp_user.refresh_token,
-                        'encryption_key': temp_user.encryption_key
-                    }
-                    st.session_state['session_created'] = datetime.now()
-                    st.rerun()
-                    
-        except AuthenticationException as e:
-            st.error(f"Authentication error: {str(e)}")
-            st.info("Please check your configuration and try again.")
-            
-            # Show configuration help
-            with st.expander("Configuration Help"):
-                st.markdown("""
-                **Required Environment Variables:**
-                - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
-                - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
-                - `OAUTH_REDIRECT_URI`: OAuth redirect URI (default: http://localhost:8501/)
-                
-                **How to set up Google OAuth:**
-                1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-                2. Create a new project or select an existing one
-                3. Enable the Google+ API
-                4. Create OAuth 2.0 credentials
-                5. Add your redirect URI to the authorized redirect URIs
-                6. Set the environment variables with your credentials
-                """)
-                
-        except Exception as e:
-            logger.error(f"Unexpected authentication error: {e}")
-            st.error("An unexpected error occurred during authentication. Please try again.")
-
-def display_user_info(user_context: UserContext):
-    """Display user information in the sidebar."""
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 👤 User Info")
-        st.markdown(f"**Name:** {user_context.name}")
-        st.markdown(f"**Email:** {user_context.email}")
-        
-        # Show development mode indicator
-        if user_context.name == "Developer":
-            st.info("🔧 Development Mode")
-        
-        # Logout button
-        logout_text = "🚪 Exit Dev Mode" if user_context.name == "Developer" else "🚪 Logout"
-        if st.button(logout_text, type="secondary"):
-            try:
-                auth_manager = AuthenticationManager()
-                auth_manager.logout()
-            except AuthenticationException as e:
-                st.error(f"Logout error: {str(e)}")
-            except Exception as e:
-                logger.error(f"Unexpected logout error: {e}")
-                st.error("An unexpected error occurred during logout.")
+    return LongevityCoach(vector_store, model_name=model_name, reasoning_effort=reasoning_effort)
 
 # --- UI Components ---
-def display_sidebar(user_context: UserContext = None):
-    # Use the new navigation system (includes conversation control)
-    display_user_context_sidebar()
+def display_sidebar():
+    with st.sidebar:
+        st.header("Conversation Control")
+        if st.button("Start New Conversation"):
+            initialize_session_state()
+            st.rerun()
 
 def display_chat_history():
     for message in st.session_state.messages:
@@ -260,14 +118,48 @@ def handle_chat_input(coach: LongevityCoach):
                     with st.spinner("Analyzing request..."):
                         questions = coach.generate_clarifying_questions(prompt)
                         st.session_state.clarifying_questions = questions
-                        response_text = "I have some questions to better understand your needs:\n\n" + "\n".join(
-                            f"- {q}" for q in questions
-                        )
-                        st.markdown(response_text)
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": response_text}
-                )
-                st.session_state.app_state = "AWAITING_ANSWERS"
+                        
+                        # If no clarifying questions needed, go directly to insights
+                        if not questions:
+                            with st.status(
+                                "Generating your personalized insights...", expanded=True
+                            ) as status:
+                                def progress_callback(message: str):
+                                    status.write(message)
+                                
+                                insights = coach.generate_insights(
+                                    initial_query=st.session_state.initial_query,
+                                    clarifying_questions=[],
+                                    user_answers_str="",
+                                    progress_callback=progress_callback,
+                                )
+                                status.update(
+                                    label="Insights Complete!", state="complete", expanded=False
+                                )
+                            
+                            render_insights(insights)
+                            
+                            # Store insights in the chat history
+                            assistant_response = {
+                                "insights": insights,
+                            }
+                            st.session_state.messages.append(
+                                {"role": "assistant", "content": assistant_response}
+                            )
+                            # Transition to ended state
+                            st.session_state.app_state = "CONVERSATION_ENDED"
+                            st.session_state.initial_query = ""
+                            st.session_state.clarifying_questions = []
+                        else:
+                            # Questions needed - show them and wait for answers
+                            response_text = "I have some questions to better understand your needs:\n\n" + "\n".join(
+                                f"- {q}" for q in questions
+                            )
+                            st.markdown(response_text)
+                            st.session_state.messages.append(
+                                {"role": "assistant", "content": response_text}
+                            )
+                            st.session_state.app_state = "AWAITING_ANSWERS"
 
             elif st.session_state.app_state == "AWAITING_ANSWERS":
                 user_answers = prompt
@@ -312,86 +204,38 @@ def handle_chat_input(coach: LongevityCoach):
 # --- Main App ---
 def main():
     setup_page()
-    
-    # Initialize authentication
-    auth_manager = AuthenticationManager()
-    
-    # Handle OAuth callback if present
-    if 'code' in st.query_params:
-        try:
-            # The authenticate_user method will handle the callback
-            user_context = auth_manager.authenticate_user()
-            if user_context:
-                st.success(f"Welcome {user_context.name}! You have been successfully authenticated.")
-                st.info("Redirecting to the main application...")
-                # Clear the URL parameters and redirect
-                st.query_params.clear()
-                st.rerun()
-            else:
-                st.error("Authentication failed. Please try again.")
-                st.query_params.clear()
-                st.rerun()
-        except AuthenticationException as e:
-            st.error(f"Authentication error: {str(e)}")
-            st.query_params.clear()
-            st.rerun()
-        except Exception as e:
-            logger.error(f"Unexpected authentication error: {e}")
-            st.error("An unexpected error occurred during authentication.")
-            st.query_params.clear()
-            st.rerun()
-    
-    # Get current user context
-    user_context = auth_manager.get_user_context()
-    
-    # Check if user is authenticated
-    if not user_context:
-        show_login_page()
-        return
-    
-    # User is authenticated, continue with main app
     st.title("🧬 Longevity Coach")
     
-    # Mark that we're on the main page for navigation
-    st.session_state['current_page'] = 'main'
+    # Create columns for model selection and reasoning effort
+    col1, col2 = st.columns([1, 1])
     
-    # Show a welcome message with user's name
-    if user_context.name != "Developer":  # Don't show welcome for dev mode
-        st.markdown(f"Welcome back, **{user_context.name}**! 👋")
-        st.markdown("*Get personalized longevity insights based on your health data*")
-    else:
-        st.warning("⚠️ Running in development mode - authentication is disabled")
+    with col1:
+        model_name = st.selectbox(
+            "Choose a model",
+            ("o4-mini", "gpt-5", "o3", "gemini-2.5-pro"),
+            index=1,  # Default to 'gpt-5'
+        )
     
-    model_name = st.selectbox(
-        "Choose a model",
-        ("o4-mini", "o3", "gemini-2.5-pro"),
-        index=1,  # Default to 'o3'
-    )
+    # Show reasoning effort selector for reasoning models
+    reasoning_effort = None
+    if model_name in ["gpt-5", "o3", "o4-mini"]:
+        with col2:
+            reasoning_effort = st.selectbox(
+                "Reasoning effort",
+                ["minimal", "low", "medium", "high"],
+                index=3,  # Default to 'high'
+                help="Higher effort = better quality but slower responses. Minimal = fastest with minimal reasoning."
+            )
     
     # Initialize coach and session state
-    try:
-        coach = initialize_coach(model_name)
-        if 'app_state' not in st.session_state:
-            initialize_session_state()
+    coach = initialize_coach(model_name, reasoning_effort)
+    if 'app_state' not in st.session_state:
+        initialize_session_state()
 
-        # Show user data info
-        #st.info(f"💾 Your data is stored securely and privately (User: {user_context.email})")
-        
-        # Display UI with user context
-        display_sidebar(user_context)
-        display_chat_history()
-        handle_chat_input(coach)
-        
-        # Display footer
-        display_page_footer()
-        
-    except Exception as e:
-        logger.error(f"Error initializing coach: {e}")
-        st.error("An error occurred while initializing the coach. Please try refreshing the page.")
-        st.info("If the problem persists, please contact support.")
-        
-        # Still show sidebar for logout option
-        display_sidebar(user_context)
+    # Display UI
+    display_sidebar()
+    display_chat_history()
+    handle_chat_input(coach)
 
 if __name__ == "__main__":
     main()

@@ -27,10 +27,16 @@ except ImportError:
 
 
 class LongevityCoach:
-    def __init__(self, vector_store, model_name: Optional[str] = None, use_chains: Optional[bool] = None):
+    def __init__(self, vector_store, model_name: Optional[str] = None, reasoning_effort: Optional[str] = None, use_chains: Optional[bool] = None):
         self.vector_store = vector_store
         self.model_name = model_name or config.DEFAULT_LLM_MODEL
-        self.llm = get_llm(self.model_name)
+        
+        # Prepare LLM kwargs with reasoning_effort if provided
+        llm_kwargs = {}
+        if reasoning_effort:
+            llm_kwargs["reasoning_effort"] = reasoning_effort
+        
+        self.llm = get_llm(self.model_name, **llm_kwargs)
         
         # Initialize chains if enabled and available
         self.use_chains = use_chains if use_chains is not None else config.USE_LANGCHAIN_CHAINS

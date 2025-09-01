@@ -15,23 +15,10 @@ pip install -r requirements.txt
 ```
 
 ### Environment Setup
-Create a `.env` file with required API keys. Copy the template and fill in your values:
-```bash
-cp .env.example .env
-```
-
-Then edit `.env` with your actual values:
+Create a `.env` file with required API keys:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 GOOGLE_API_KEY=your_google_api_key_here  # Optional, for Gemini models
-
-# OAuth2 Configuration (required for authentication)
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-OAUTH_REDIRECT_URI=http://localhost:8501/
-
-# Development Configuration (optional)
-OAUTH_INSECURE_TRANSPORT=true  # Allows HTTP for local development
 ```
 
 Optional configuration environment variables:
@@ -39,6 +26,7 @@ Optional configuration environment variables:
 VECTOR_STORE_FOLDER=vector_store_data
 EMBEDDING_MODEL=text-embedding-3-large
 DEFAULT_LLM_MODEL=o3
+DEFAULT_REASONING_EFFORT=high  # For reasoning models: minimal, low, medium, high
 DEFAULT_TOP_K=5
 DOCS_FILE=docs.jsonl
 USE_LANGCHAIN_CHAINS=false  # Enable advanced workflow chains
@@ -108,6 +96,7 @@ EMBEDDING_DIMENSION=3072                     # Default: 3072
 # LLM Configuration
 DEFAULT_LLM_MODEL=o3                         # Default: "o3"
 DEFAULT_TEMPERATURE=1.0                      # Default: 1.0
+DEFAULT_REASONING_EFFORT=high                # Default: "high" (minimal/low/medium/high)
 
 # Search Configuration
 DEFAULT_TOP_K=5                              # Default: 5
@@ -197,9 +186,10 @@ Organized prompt templates by functionality:
 
 3. **LLM Provider System** (`coach/llm_providers.py`):
    - Factory pattern for LLM initialization with LangChain integration
-   - Support for OpenAI (o3, o4-mini) and Google Gemini
+   - Support for OpenAI (gpt-5, o3, o4-mini) and Google Gemini
    - Extensible provider system with automatic callback integration
    - Unified embeddings management through LangChain
+   - Configurable reasoning_effort for reasoning models (gpt-5, o3, o4-mini)
 
 4. **Hybrid Search System** (`coach/langchain_vector_store.py`):
    - LangChain FAISS integration with ensemble retrievers

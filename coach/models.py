@@ -24,9 +24,9 @@ class ClarifyingQuestions(BaseModel):
     """A list of clarifying questions to ask the user."""
     questions: List[str] = Field(
         ..., 
-        description="A list of 2-3 clarifying questions.",
-        min_items=1,
-        max_items=3
+        description="A list of 0-2 clarifying questions. Return an empty list if the query is already specific enough.",
+        min_items=0,
+        max_items=2
     )
 
 
@@ -102,18 +102,4 @@ class DocumentProcessingResult(BaseModel):
     error_message: Optional[str] = Field(
         None,
         description="Error message if processing failed"
-    )
-
-
-# --- User Context Models ---
-class UserContext(BaseModel):
-    """Represents user authentication and profile information."""
-    user_id: str = Field(..., description="Unique identifier for the user")
-    email: str = Field(..., description="User's email address")
-    name: str = Field(..., description="User's display name")
-    oauth_token: str = Field(..., description="OAuth access token for authentication")
-    refresh_token: str = Field(..., description="OAuth refresh token for token renewal")
-    encryption_key: Optional[str] = Field(
-        None,
-        description="Optional encryption key for securing user data"
     )
