@@ -41,11 +41,17 @@ Examples (NOTE: Only test results are extracted, even if source contains patient
 {{"doc_id":"lab_2025-02-15_Cardiac_Risk_Triglycerides","text":"Test: Triglycerides\nResult: 1.9\nUnits: mmol/L\nReference: <1.7","metadata":{{"date":"2025-02-15","category":"Lab Work","sub_category":"Cardiac Risk","test":"Triglycerides"}}}}
 ```
 
-Analyze the following text and generate one or more JSON objects like the examples above. 
+## Output Instructions:
+
+When using the DocumentBatch tool:
+- Provide a "documents" array containing extracted test results
+- Each document should have doc_id, text, and metadata fields as shown in examples
+
+When outputting raw JSONL (fallback mode):
+- Generate one or more JSON objects like the examples above
+- Output one JSON object per line, no markdown formatting
 
 REMEMBER: Extract ONLY test results with test names and values. Ignore all patient information, lab information, headers, footers, and any non-test data.
-
-Respond with ONLY the JSON object(s) - one per line, no markdown formatting.
 
 ```{raw_text}```
 """

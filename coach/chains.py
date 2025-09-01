@@ -14,10 +14,14 @@ from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 
 from coach.prompts import (
     PLANNING_PROMPT_TEMPLATE,
-    SEARCH_QUERIES_PROMPT_TEMPLATE,
     INSIGHTS_PROMPT_TEMPLATE,
     CLARIFYING_QUESTIONS_PROMPT_TEMPLATE,
     COMPLETE_RAG_PROMPT_TEMPLATE,
+)
+from coach.prompts.rag import (
+    format_search_strategy,
+    format_user_context,
+    generate_category_sections,
 )
 from coach.models import Insights, ClarifyingQuestions
 from coach.exceptions import ChainExecutionException
@@ -48,9 +52,6 @@ class LongevityCoachChains:
             # Search planning chain
             self.chains['search_planning'] = self._create_search_planning_chain()
             
-            # Query generation chain
-            self.chains['query_generation'] = self._create_query_generation_chain()
-            
             # Insights generation chain
             self.chains['insights_generation'] = self._create_insights_generation_chain()
             
@@ -73,16 +74,6 @@ class LongevityCoachChains:
             llm=self.llm,
             prompt=prompt,
             output_key="search_strategy",
-            verbose=True
-        )
-    
-    def _create_query_generation_chain(self) -> LLMChain:
-        """Create query generation chain."""
-        prompt = PromptTemplate.from_template(SEARCH_QUERIES_PROMPT_TEMPLATE)
-        return LLMChain(
-            llm=self.llm,
-            prompt=prompt,
-            output_key="search_queries",
             verbose=True
         )
     
@@ -130,20 +121,32 @@ class LongevityCoachChains:
         """Create a complete RAG chain that combines retrieval and generation."""
         # This is a more complex chain that combines multiple steps
         
-        # Create a prompt for the final generation step
-        prompt = ChatPromptTemplate.from_template(COMPLETE_RAG_PROMPT_TEMPLATE)
-        
         # Create a chain that formats documents
         def format_docs(docs):
             return "\n\n".join(doc.page_content for doc in docs)
         
+        # Create a function to prepare the prompt with all required fields
+        def prepare_prompt(inputs):
+            search_strategy = inputs.get("search_strategy", {})
+            
+            # Generate category sections based on search strategy
+            category_sections = generate_category_sections(search_strategy)
+            
+            # Format the complete prompt with all placeholders filled
+            prompt_text = COMPLETE_RAG_PROMPT_TEMPLATE.format(
+                search_strategy=format_search_strategy(search_strategy),
+                user_context=format_user_context(inputs.get("user_context", {})),
+                context=format_docs(inputs["documents"]),
+                query=inputs["query"],
+                category_sections=category_sections
+            )
+            
+            return prompt_text
+        
         # Create the complete chain
         chain = (
-            {
-                "context": lambda x: format_docs(x["documents"]),
-                "query": RunnablePassthrough()
-            }
-            | prompt
+            prepare_prompt
+            | ChatPromptTemplate.from_template("{text}")
             | self.llm
             | StrOutputParser()
         )
@@ -166,23 +169,6 @@ class LongevityCoachChains:
         except Exception as e:
             logger.error(f"Search planning chain failed: {e}")
             raise ChainExecutionException(f"Search planning failed: {str(e)}") from e
-    
-    def run_query_generation(self, search_strategy: str) -> str:
-        """
-        Run the query generation chain.
-        
-        Args:
-            search_strategy: Search strategy to generate queries for
-            
-        Returns:
-            Generated search queries (JSON format)
-        """
-        try:
-            result = self.chains['query_generation'].run(search_strategy=search_strategy)
-            return result
-        except Exception as e:
-            logger.error(f"Query generation chain failed: {e}")
-            raise ChainExecutionException(f"Query generation failed: {str(e)}") from e
     
     def run_insights_generation(self, context: str, query: str) -> Insights:
         """
@@ -222,13 +208,21 @@ class LongevityCoachChains:
             logger.error(f"Clarifying questions chain failed: {e}")
             raise ChainExecutionException(f"Clarifying questions failed: {str(e)}") from e
     
-    def run_complete_rag(self, query: str, documents: List[Document]) -> str:
+    def run_complete_rag(
+        self, 
+        query: str, 
+        documents: List[Document],
+        search_strategy: Optional[Any] = None,
+        user_context: Optional[Dict[str, Any]] = None
+    ) -> str:
         """
         Run the complete RAG chain.
         
         Args:
             query: User query
             documents: Retrieved documents
+            search_strategy: Search strategy used for retrieval
+            user_context: User-specific context information
             
         Returns:
             Generated response
@@ -236,7 +230,9 @@ class LongevityCoachChains:
         try:
             result = self.chains['rag_complete'].invoke({
                 "query": query,
-                "documents": documents
+                "documents": documents,
+                "search_strategy": search_strategy,
+                "user_context": user_context
             })
             return result
         except Exception as e:
@@ -315,34 +311,36 @@ class RAGWorkflow:
             search_strategy = self.chains.run_search_planning(query)
             results['search_strategy'] = search_strategy
             
-            # Step 2: Query Generation
-            logger.info("Step 2: Query Generation")
-            search_queries = self.chains.run_query_generation(search_strategy)
-            results['search_queries'] = search_queries
-            
-            # Step 3: Document Retrieval
-            logger.info("Step 3: Document Retrieval")
+            # Step 2: Document Retrieval
+            logger.info("Step 2: Document Retrieval")
             documents = self._retrieve_documents(query, search_strategy)
             results['retrieved_documents'] = len(documents)
             
-            # Step 4: Context Preparation
+            # Step 3: Context Preparation
             context = "\n\n".join(doc.page_content for doc in documents)
             results['context_length'] = len(context)
             
-            # Step 5: Insights Generation
-            logger.info("Step 5: Insights Generation")
+            # Step 4: Insights Generation
+            logger.info("Step 4: Insights Generation")
             insights = self.chains.run_insights_generation(context, query)
             results['insights'] = insights
             
-            # Step 6: Clarifying Questions (optional)
+            # Step 5: Clarifying Questions (optional)
             if generate_clarifying_questions:
-                logger.info("Step 6: Clarifying Questions")
+                logger.info("Step 5: Clarifying Questions")
                 clarifying_questions = self.chains.run_clarifying_questions(query)
                 results['clarifying_questions'] = clarifying_questions
             
-            # Step 7: Complete Response
-            logger.info("Step 7: Complete Response")
-            complete_response = self.chains.run_complete_rag(query, documents)
+            # Step 6: Complete Response
+            logger.info("Step 6: Complete Response")
+            # Get user context if available
+            user_context = kwargs.get('user_context', None)
+            complete_response = self.chains.run_complete_rag(
+                query, 
+                documents,
+                search_strategy=search_strategy,
+                user_context=user_context
+            )
             results['complete_response'] = complete_response
             
             logger.info("RAG workflow completed successfully")

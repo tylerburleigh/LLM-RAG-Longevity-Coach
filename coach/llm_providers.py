@@ -66,14 +66,25 @@ class OpenAIProvider(LLMProvider):
         
         temperature = kwargs.get("temperature", config.DEFAULT_TEMPERATURE)
         
-        # For reasoning models, add reasoning_effort parameter
+        # For reasoning models, use the reasoning parameter with dict format
         if model_name in ["gpt-5", "o3", "o4-mini"]:
             reasoning_effort = kwargs.get("reasoning_effort", config.DEFAULT_REASONING_EFFORT)
+            
+            # Create reasoning dict with effort and summary
+            reasoning = {
+                "effort": reasoning_effort,
+                "summary": "auto"
+            }
+            
+            # Create kwargs without reasoning_effort since we're using reasoning dict
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["temperature", "reasoning_effort"]}
+            
             return ChatOpenAI(
                 model_name=model_name,
                 temperature=temperature,
-                reasoning_effort=reasoning_effort,
-                **{k: v for k, v in kwargs.items() if k not in ["temperature", "reasoning_effort"]}
+                reasoning=reasoning,
+                output_version="responses/v1",  # Use Responses API for proper formatting
+                **filtered_kwargs
             )
         else:
             return ChatOpenAI(

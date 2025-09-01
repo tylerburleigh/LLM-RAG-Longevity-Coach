@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 
-from coach.models import Document
+from coach.models import Document, DocumentBatch
 from coach.prompts import DOCUMENT_STRUCTURE_PROMPT_TEMPLATE
 from coach.exceptions import (
     PDFExtractionException,
@@ -154,6 +154,43 @@ class DocumentProcessor:
             DocumentStructuringException: If structuring fails
         """
         try:
+            # Try structured output first (for models that support bind_tools)
+            try:
+                # Bind DocumentBatch to LLM for structured output
+                structured_llm = llm.bind_tools(
+                    [DocumentBatch],
+                    tool_choice="DocumentBatch"
+                )
+                
+                # Create prompt with structured output instructions
+                structured_prompt = f"""{DOCUMENT_STRUCTURE_PROMPT_TEMPLATE.format(raw_text=raw_text)}
+
+## Output Instructions:
+You will use the DocumentBatch tool to provide extracted test results.
+Each document in the batch should have:
+- doc_id: Unique identifier (e.g., "lab_2025-08-29_Hematology_ESR")
+- text: Full test result text including test name, value, units, and reference range
+- metadata: Dictionary with date, category, sub_category, test fields
+
+Extract ONLY laboratory test results. Do not include patient information, headers, or non-test data."""
+                
+                # Get structured response
+                messages = [HumanMessage(content=structured_prompt)]
+                response = structured_llm.invoke(messages)
+                
+                # Extract tool call
+                if response.tool_calls:
+                    tool_call = response.tool_calls[0]
+                    doc_batch = DocumentBatch.model_validate(tool_call["args"])
+                    
+                    logger.info(f"Created {len(doc_batch.documents)} structured documents with structured output")
+                    return doc_batch.documents
+                    
+            except Exception as e:
+                logger.debug(f"Structured output failed, falling back to manual parsing: {e}")
+                # Fall through to manual parsing below
+            
+            # Fallback: Manual parsing for models that don't support bind_tools
             # Create prompt template
             prompt = PromptTemplate.from_template(DOCUMENT_STRUCTURE_PROMPT_TEMPLATE)
             

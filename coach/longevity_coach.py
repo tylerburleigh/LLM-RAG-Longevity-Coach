@@ -12,6 +12,11 @@ from coach.prompts import (
     CLARIFYING_QUESTIONS_PROMPT_TEMPLATE,
     INSIGHTS_PROMPT_TEMPLATE,
 )
+from coach.prompts.rag import (
+    format_search_strategy,
+    format_user_context,
+    generate_category_sections,
+)
 from coach.llm_providers import get_llm
 from coach.types import ProgressCallback
 from coach.config import config
@@ -75,11 +80,12 @@ class LongevityCoach:
         clarifying_questions: List[str],
         user_answers_str: str,
         progress_callback: Optional[ProgressCallback] = None,
+        user_data: Optional[Dict[str, Any]] = None,
     ) -> List[Insight]:
         """Generate insights based on the user's query and answers."""
         if progress_callback:
             progress_callback("🧠 Planning search strategy...")
-        search_strategy = plan_search(initial_query, self.llm)
+        search_strategy = plan_search(initial_query, self.llm, user_data=user_data)
 
         if progress_callback:
             progress_callback("🔎 Retrieving relevant documents...")
@@ -88,12 +94,20 @@ class LongevityCoach:
 
         # Format questions for the prompt
         questions_str = "\n".join(f"- {q}" for q in clarifying_questions)
+        
+        # Format search strategy, user context, and category sections using enhanced formatting
+        search_strategy_str = format_search_strategy(search_strategy)
+        user_context_str = format_user_context(user_data)
+        category_sections = generate_category_sections(search_strategy)
 
         prompt = INSIGHTS_PROMPT_TEMPLATE.format(
+            search_strategy=search_strategy_str,
+            user_context=user_context_str,
             context_str=context_str,
             initial_query=initial_query,
             clarifying_questions=questions_str,
             user_answers_str=user_answers_str,
+            category_sections=category_sections,
         )
 
         if progress_callback:
@@ -116,4 +130,4 @@ class LongevityCoach:
             reverse=True,
         )
 
-        return insights_obj.insights
+        return insights_obj

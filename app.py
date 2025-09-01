@@ -54,17 +54,27 @@ def display_chat_history():
             else:
                 st.markdown(str(content))
 
-def render_insights(insights: list):
+def render_insights(insights_response):
     # --- Define styles for visual presentation ---
     IMPORTANCE_EMOJI = {"High": "🔥", "Medium": "⭐", "Low": "⚪️"}
     CONFIDENCE_EMOJI = {"High": "✅", "Medium": "✔️", "Low": "❔"}
     
     st.markdown("### ✍️ Insights and Recommendations")
+    
+    # Display executive summary if available
+    if hasattr(insights_response, 'executive_summary') and insights_response.executive_summary:
+        st.markdown("#### 📊 Executive Summary")
+        st.info(insights_response.executive_summary)
+        st.divider()
+    
+    # Handle both list and Insights object
+    insights_list = insights_response.insights if hasattr(insights_response, 'insights') else insights_response
+    
     st.info(
-        "Here are some insights and recommendations based on your health data:"
+        "Here are detailed insights and recommendations based on your health data:"
     )
 
-    for i, insight in enumerate(insights):
+    for i, insight in enumerate(insights_list):
         with st.container(border=True):
             st.markdown(f"#### {insight.insight}")
 
@@ -79,9 +89,33 @@ def render_insights(insights: list):
                 )
             
             st.divider()
+            
+            # Display recommendation if available, otherwise use insight text
+            if hasattr(insight, 'recommendation') and insight.recommendation:
+                st.markdown("**Recommendation:**")
+                st.write(insight.recommendation)
+            else:
+                # Fallback for insights without separate recommendation field
+                st.markdown("**Details:**")
+                st.write(insight.insight)
+            
+            # Display implementation protocol if available
+            if hasattr(insight, 'implementation_protocol') and insight.implementation_protocol:
+                st.markdown("**Implementation Protocol:**")
+                st.write(insight.implementation_protocol)
+            
+            # Display monitoring plan if available
+            if hasattr(insight, 'monitoring_plan') and insight.monitoring_plan:
+                st.markdown("**Monitoring Plan:**")
+                st.write(insight.monitoring_plan)
+            
+            # Display safety notes if available
+            if hasattr(insight, 'safety_notes') and insight.safety_notes:
+                st.markdown("**⚠️ Safety Considerations:**")
+                st.warning(insight.safety_notes)
 
-            with st.expander("Show Rationale"):
-                st.markdown("**Rationale:**")
+            with st.expander("Show Evidence & Rationale"):
+                st.markdown("**Rationale & Evidence:**")
                 st.info(insight.rationale)
                 st.markdown("**Supporting Data:**")
                 st.info(insight.data_summary)
@@ -220,11 +254,21 @@ def main():
     reasoning_effort = None
     if model_name in ["gpt-5", "o3", "o4-mini"]:
         with col2:
+            # GPT-5 supports minimal, others don't
+            if model_name == "gpt-5":
+                effort_options = ["minimal", "low", "medium", "high"]
+                default_index = 3  # Default to 'high'
+                help_text = "Higher effort = better quality but slower responses. Minimal = fastest with minimal reasoning (GPT-5 only)."
+            else:
+                effort_options = ["low", "medium", "high"]
+                default_index = 2  # Default to 'high'
+                help_text = "Higher effort = better quality but slower responses."
+            
             reasoning_effort = st.selectbox(
                 "Reasoning effort",
-                ["minimal", "low", "medium", "high"],
-                index=3,  # Default to 'high'
-                help="Higher effort = better quality but slower responses. Minimal = fastest with minimal reasoning."
+                effort_options,
+                index=default_index,
+                help=help_text
             )
     
     # Initialize coach and session state
