@@ -62,6 +62,49 @@ class LongevityCoach:
             tool_choice="ClarifyingQuestions",
         )
 
+    def _normalize_confidence_value(self, value: str) -> str:
+        """Normalize confidence values to valid literals.
+        
+        Maps compound or non-standard values to the closest valid option:
+        - High-related: 'High', 'Very High', 'Almost Certain' → 'High'
+        - Medium-High: 'Medium-High', 'Moderate-High' → 'High' 
+        - Medium-related: 'Medium', 'Moderate', 'Medium-Low' → 'Medium'
+        - Low-related: 'Low', 'Low-Medium', 'Very Low' → 'Low'
+        """
+        if not isinstance(value, str):
+            return "Medium"  # Default fallback
+        
+        value_lower = value.lower().strip()
+        
+        # Map to High
+        if any(term in value_lower for term in ['high', 'very', 'certain', 'strong']):
+            return "High"
+        # Map to Low  
+        elif 'low' in value_lower and 'medium' not in value_lower:
+            return "Low"
+        # Default to Medium for anything ambiguous
+        else:
+            return "Medium"
+    
+    def _normalize_insight_values(self, tool_args: dict) -> dict:
+        """Normalize confidence and importance values in the tool args.
+        
+        This handles cases where the LLM returns non-standard values like
+        'Medium-High' instead of the required literal values.
+        """
+        # Process insights array if it exists
+        if "insights" in tool_args and isinstance(tool_args["insights"], list):
+            for insight in tool_args["insights"]:
+                # Normalize confidence
+                if "confidence" in insight:
+                    insight["confidence"] = self._normalize_confidence_value(insight["confidence"])
+                
+                # Normalize importance using the same logic
+                if "importance" in insight:
+                    insight["importance"] = self._normalize_confidence_value(insight["importance"])
+        
+        return tool_args
+    
     def generate_clarifying_questions(self, query: str) -> List[str]:
         """Generate clarifying questions based on the user's query."""
         prompt = CLARIFYING_QUESTIONS_PROMPT_TEMPLATE.format(query=query)
@@ -118,6 +161,10 @@ class LongevityCoach:
         if not response.tool_calls:
             return []
         tool_args = response.tool_calls[0]["args"]
+        
+        # Normalize confidence and importance values before validation
+        tool_args = self._normalize_insight_values(tool_args)
+        
         insights_obj = Insights.model_validate(tool_args)
 
         # Sort by importance, then confidence (both descending)

@@ -79,8 +79,8 @@ For each insight in the insights array, include these fields:
 - **implementation_protocol** (optional): Precise details on dosage, timing, duration with step-by-step guidance
 - **monitoring_plan** (optional): Biomarkers to track with optimal ranges, timeline for reassessment, success metrics, adjustment triggers
 - **safety_notes** (optional): Potential side effects, contraindications, when to consult healthcare providers
-- **importance**: "High", "Medium", or "Low" based on clinical impact
-- **confidence**: "High", "Medium", or "Low" based on evidence quality (High=Level A/B, Medium=Level C, Low=Level D)
+- **importance**: MUST be exactly one of: "High", "Medium", or "Low" based on clinical impact (DO NOT use compound values like "Medium-High")
+- **confidence**: MUST be exactly one of: "High", "Medium", or "Low" based on evidence quality (High=Level A/B, Medium=Level C, Low=Level D) - DO NOT use compound values like "Medium-High" or "Low-Medium"
 
 **Category-Specific Expertise:**
 Apply specialized knowledge based on the search strategy categories:
